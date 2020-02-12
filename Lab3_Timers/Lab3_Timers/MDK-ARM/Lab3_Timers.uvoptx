@@ -22,7 +22,7 @@
   </DaveTm>
 
   <Target>
-    <TargetName>Lab2_Interrupt</TargetName>
+    <TargetName>Lab3_Timers</TargetName>
     <ToolsetNumber>0x4</ToolsetNumber>
     <ToolsetName>ARM-ADS</ToolsetName>
     <TargetOption>
@@ -154,7 +154,7 @@
         <SetRegEntry>
           <Number>0</Number>
           <Key>ST-LINKIII-KEIL_SWO</Key>
-          <Name>-U-O142 -O2254 -S3 -C-1 -A0 -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -FO7 -FD20000000 -FC800 -FN1 -FF0STM32F0xx_128 -FS08000000 -FL020000 -FP0($$Device:STM32F072RB$CMSIS\Flash\STM32F0xx_128.FLM)</Name>
+          <Name>-U55FF6C067084554829332467 -O2254 -S3 -C-1 -A0 -N00("ARM CoreSight SW-DP") -D00(0BB11477) -L00(0) -TO18 -TC10000000 -TP21 -TDS8007 -TDT0 -TDC1F -TIEFFFFFFFF -TIP8 -FO7 -FD20000000 -FC800 -FN1 -FF0STM32F0xx_128 -FS08000000 -FL020000 -FP0($$Device:STM32F072RB$CMSIS\Flash\STM32F0xx_128.FLM)</Name>
         </SetRegEntry>
       </TargetDriverDllRegistry>
       <Breakpoint/>
@@ -206,7 +206,7 @@
 
   <Group>
     <GroupName>Drivers/CMSIS</GroupName>
-    <tvExp>0</tvExp>
+    <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
     <RteFlg>0</RteFlg>
@@ -225,7 +225,7 @@
   </Group>
 
   <Group>
-    <GroupName>Application/MDK-ARM</GroupName>
+    <GroupName>Application/User</GroupName>
     <tvExp>1</tvExp>
     <tvExpOptDlg>0</tvExpOptDlg>
     <cbSel>0</cbSel>
@@ -233,26 +233,6 @@
     <File>
       <GroupNumber>3</GroupNumber>
       <FileNumber>2</FileNumber>
-      <FileType>2</FileType>
-      <tvExp>0</tvExp>
-      <tvExpOptDlg>0</tvExpOptDlg>
-      <bDave2>0</bDave2>
-      <PathWithFileName>startup_stm32f072xb.s</PathWithFileName>
-      <FilenameWithoutPath>startup_stm32f072xb.s</FilenameWithoutPath>
-      <RteFlg>0</RteFlg>
-      <bShared>0</bShared>
-    </File>
-  </Group>
-
-  <Group>
-    <GroupName>Application/User</GroupName>
-    <tvExp>1</tvExp>
-    <tvExpOptDlg>0</tvExpOptDlg>
-    <cbSel>0</cbSel>
-    <RteFlg>0</RteFlg>
-    <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>3</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
@@ -263,10 +243,10 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>4</FileNumber>
+      <GroupNumber>3</GroupNumber>
+      <FileNumber>3</FileNumber>
       <FileType>1</FileType>
-      <tvExp>1</tvExp>
+      <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
       <PathWithFileName>../Src/main.c</PathWithFileName>
@@ -275,14 +255,34 @@
       <bShared>0</bShared>
     </File>
     <File>
-      <GroupNumber>4</GroupNumber>
-      <FileNumber>5</FileNumber>
+      <GroupNumber>3</GroupNumber>
+      <FileNumber>4</FileNumber>
       <FileType>1</FileType>
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
       <PathWithFileName>../Src/stm32f0xx_hal_msp.c</PathWithFileName>
       <FilenameWithoutPath>stm32f0xx_hal_msp.c</FilenameWithoutPath>
+      <RteFlg>0</RteFlg>
+      <bShared>0</bShared>
+    </File>
+  </Group>
+
+  <Group>
+    <GroupName>Application/MDK-ARM</GroupName>
+    <tvExp>1</tvExp>
+    <tvExpOptDlg>0</tvExpOptDlg>
+    <cbSel>0</cbSel>
+    <RteFlg>0</RteFlg>
+    <File>
+      <GroupNumber>4</GroupNumber>
+      <FileNumber>5</FileNumber>
+      <FileType>2</FileType>
+      <tvExp>0</tvExp>
+      <tvExpOptDlg>0</tvExpOptDlg>
+      <bDave2>0</bDave2>
+      <PathWithFileName>startup_stm32f072xb.s</PathWithFileName>
+      <FilenameWithoutPath>startup_stm32f072xb.s</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -301,8 +301,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_tim.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_tim.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_i2c.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -325,8 +325,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c_ex.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_i2c_ex.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -337,8 +337,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_pwr_ex.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_pwr_ex.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -361,8 +361,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_rcc_ex.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_rcc_ex.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_rcc.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_rcc.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -373,8 +373,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_i2c.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_gpio.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_gpio.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -385,8 +385,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_flash.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_flash.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_rcc_ex.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_rcc_ex.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -397,8 +397,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_pwr_ex.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_pwr_ex.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_cortex.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_cortex.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -421,8 +421,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_cortex.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_cortex.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_flash.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_flash.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -433,8 +433,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_gpio.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_gpio.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_i2c_ex.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_i2c_ex.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
@@ -457,8 +457,8 @@
       <tvExp>0</tvExp>
       <tvExpOptDlg>0</tvExpOptDlg>
       <bDave2>0</bDave2>
-      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_rcc.c</PathWithFileName>
-      <FilenameWithoutPath>stm32f0xx_hal_rcc.c</FilenameWithoutPath>
+      <PathWithFileName>../Drivers/STM32F0xx_HAL_Driver/Src/stm32f0xx_hal_tim.c</PathWithFileName>
+      <FilenameWithoutPath>stm32f0xx_hal_tim.c</FilenameWithoutPath>
       <RteFlg>0</RteFlg>
       <bShared>0</bShared>
     </File>
