@@ -1,0 +1,63 @@
+<html>
+<body>
+<pre>
+<h1>µVision Build Log</h1>
+<h2>Tool Versions:</h2>
+IDE-Version: µVision V5.21.1.0
+Copyright (C) 2016 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: Doug Ressler, U. of Utah, Electrical & Computer Engineering, LIC=----
+ 
+Tool Versions:
+Toolchain:       MDK-Lite  Version: 5.21a
+Toolchain Path:  C:\Keil_v5\ARM\ARMCC\Bin
+C Compiler:      Armcc.exe V5.06 update 3 (build 300)
+Assembler:       Armasm.exe V5.06 update 3 (build 300)
+Linker/Locator:  ArmLink.exe V5.06 update 3 (build 300)
+Library Manager: ArmAr.exe V5.06 update 3 (build 300)
+Hex Converter:   FromElf.exe V5.06 update 3 (build 300)
+CPU DLL:         SARMCM3.DLL V5.21a
+Dialog DLL:      DARMCM1.DLL V1.14.0.0
+Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V2.0.18.0
+Dialog DLL:      TARMCM1.DLL V1.10.0.0
+ 
+<h2>Project:</h2>
+X:\Documents\Github\Lab4_USART\Lab4_USART\MDK-ARM\Lab4_USART.uvprojx
+Project File Date:  02/19/2020
+
+<h2>Output:</h2>
+*** Using Compiler 'V5.06 update 3 (build 300)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
+Build target 'Lab4_USART'
+compiling main.c...
+../Src/main.c(88): warning:  #177-D: variable "toSend" was declared but never referenced
+  	char toSend = 'j';
+../Src/main.c(89): warning:  #177-D: variable "toSendArr" was declared but never referenced
+  	char toSendArr[] = "hello";
+../Src/main.c(104): warning:  #177-D: variable "received" was declared but never referenced
+  	char received = NULL;
+../Src/main.c(105): warning:  #177-D: variable "errMsg" was declared but never referenced
+  	char errMsg[] = "Err: no matching LED color to '";
+../Src/main.c: 4 warnings, 0 errors
+linking...
+Program Size: Code=3112 RO-data=280 RW-data=16 ZI-data=1024  
+"Lab4_USART\Lab4_USART.axf" - 0 Error(s), 4 Warning(s).
+
+<h2>Software Packages used:</h2>
+
+Package Vendor: ARM
+                http://www.keil.com/pack/ARM.CMSIS.4.5.0.pack
+                ARM::CMSIS:CORE:4.3.0
+                CMSIS (Cortex Microcontroller Software Interface Standard)
+   * Component: CORE Version: 4.3.0
+
+<h2>Collection of Component include folders:</h2>
+  X:\Documents\Github\Lab4_USART\Lab4_USART\MDK-ARM\RTE
+  C:\Keil_v5\ARM\PACK\ARM\CMSIS\4.5.0\CMSIS\Include
+  C:\Keil_v5\ARM\PACK\Keil\STM32F0xx_DFP\2.0.0\Drivers\CMSIS\Device\ST\STM32F0xx\Include
+
+<h2>Collection of Component Files used:</h2>
+
+   * Component: ARM::CMSIS:CORE:4.3.0
+Build Time Elapsed:  00:00:04
+</pre>
+</body>
+</html>

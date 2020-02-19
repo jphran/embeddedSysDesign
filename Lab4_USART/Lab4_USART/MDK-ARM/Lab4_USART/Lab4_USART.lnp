@@ -1,0 +1,24 @@
+--cpu Cortex-M0
+"lab4_usart\system_stm32f0xx.o"
+"lab4_usart\stm32f0xx_hal_msp.o"
+"lab4_usart\main.o"
+"lab4_usart\stm32f0xx_it.o"
+"lab4_usart\startup_stm32f072xb.o"
+"lab4_usart\stm32f0xx_hal_dma.o"
+"lab4_usart\stm32f0xx_hal_i2c_ex.o"
+"lab4_usart\stm32f0xx_hal_i2c.o"
+"lab4_usart\stm32f0xx_hal_tim_ex.o"
+"lab4_usart\stm32f0xx_hal_rcc_ex.o"
+"lab4_usart\stm32f0xx_hal_flash.o"
+"lab4_usart\stm32f0xx_hal_pwr_ex.o"
+"lab4_usart\stm32f0xx_hal_flash_ex.o"
+"lab4_usart\stm32f0xx_hal_tim.o"
+"lab4_usart\stm32f0xx_hal.o"
+"lab4_usart\stm32f0xx_hal_cortex.o"
+"lab4_usart\stm32f0xx_hal_rcc.o"
+"lab4_usart\stm32f0xx_hal_pwr.o"
+"lab4_usart\stm32f0xx_hal_gpio.o"
+--library_type=microlib --strict --scatter "Lab4_USART\Lab4_USART.sct"
+--diag_suppress=L6329 --summary_stderr --info summarysizes --map --xref --callgraph --symbols
+--info sizes --info totals --info unused --info veneers
+--list "Lab4_USART.map" -o Lab4_USART\Lab4_USART.axf
