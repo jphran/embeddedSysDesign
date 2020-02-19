@@ -146,6 +146,8 @@ int main(void)
 		if(newCmd){
 			userLED = whichLED(cmd[0]);
 			pinCmd(cmd[1]);
+			USART_sendString(cmd);
+			USART_sendString(" executed.\n");
 			clearCmd();
 			USART_sendString("CMD: "); //send prompt
 		}
