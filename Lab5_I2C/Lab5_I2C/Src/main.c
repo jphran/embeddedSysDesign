@@ -152,76 +152,60 @@ int main(void)
 	const uint8_t gyroAddress = 0x6B;
 	const uint8_t gyroWhoAmI = 0x0F; //lab5.pdf pg 10
 	const uint8_t expectedVal = 0xD4;
+	const uint8_t ctrlReg = 0x20;
+	const uint8_t ctrlCmd = 0xB; //0b001011
+	const uint8_t xLReg = 0x28;
+	const uint8_t xHReg = 0x29;
+	const uint8_t yLReg = 0x2A;
+	const uint8_t yHReg = 0x2B;
+	const uint8_t acclReg[] = {xLReg,xHReg,yLReg,yHReg};
+	
+	float accX = NULL;
+	float accY = NULL;
+	uint8_t returnMsg = NULL;
+	
+	//init gyro
+	writeI2C(gyroAddress, gyroWhoAmI);
+	writeI2C(ctrlReg, ctrlCmd);
+	
+	const float thres = 10000;
 	
   while (1)
   {
 		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-//		//configure transaction params
-//		I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear NBYTES and SADD
-//		I2C2->CR2 |= (gyroAddress << 1); //set SADD (slave address)
-//		I2C2->CR2 &= ~(1 << 10); //set write direction
-//		I2C2->CR2 |= (1 << 16); //set 1 byte to transfer
-//		I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
-//		
-//		//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
-//		while(!(I2C2->ISR & (1 << 1))){ 
-//			//HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
-//			if(I2C2->ISR & (1 << 4)){ //if NACKF set
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-//			}
-//		}
-//		//HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-//		
-
-//		
-//		//send who am i register address
-//		I2C2->TXDR = gyroWhoAmI;
-//		
-//		//wait till transfer complete flag is set
-//		while(!(I2C2->ISR & (1 << 6))){
-//			//HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
-//			//do nothing
-//		}
-//		//HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
 		
-		if(!writeI2C(gyroAddress, gyroWhoAmI)){
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-		}
-		uint8_t val = readI2C(gyroAddress);
+		accX = (readI2C(acclReg[1]) << 8) | readI2C(acclReg[0]);
+		accY = (readI2C(acclReg[3]) << 8) | readI2C(acclReg[2]);
 		
-//		//config transaction params
-//		I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear NBYTES and SADD
-//		I2C2->CR2 |= (gyroAddress << 1); //set SADD (slave address)
-//		I2C2->CR2 |= (1 << 10); //set read direction
-//		I2C2->CR2 |= (1 << 16); //set 1 byte to transfer
-//		I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
-//		
-//		//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
-//		while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
-//			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
-//			if(I2C2->ISR & (1<<4)){ //if NACKF set
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-//			}
-//		}
-//		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-//		
-//		//wait till transfer complete flag is set
-//		while(!(I2C2->ISR & (1 << 6))){
-//			//do nothing
-//		}
-		
-		//check for proper value
-		if(val & expectedVal){
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET); //throw all good
-		}
-		else{ //throw received but no good
+		if(accX >= thres){
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+		}
+		else if(accX <= -thres){
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
 		}
+		else{
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET); //red
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
+		}
+		
+		if(accY >= thres){
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+		}
+		else if(accX <= -thres){
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+		}
+		else{
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //blue
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
+		}
 		
 		
-		
-		HAL_Delay(500);
+		HAL_Delay(100);
+
   }
   /* USER CODE END 3 */
 
@@ -239,6 +223,7 @@ int writeI2C(uint8_t addy, uint8_t msg){
 	//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
 	while(!(I2C2->ISR & (1 << 1))){ 
 		if(I2C2->ISR & (1 << 4)){ //if NACKF set
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
 			return 0;
 		}
 	}
@@ -265,9 +250,11 @@ uint8_t readI2C(uint8_t addy){
 	//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
 	while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
 		if(I2C2->ISR & (1<<4)){ //if NACKF set
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
 			return NULL;	//throw err
 		}
 	}
+	
 	
 	//wait till transfer complete flag is set
 	while(!(I2C2->ISR & (1 << 6))){
@@ -280,7 +267,9 @@ uint8_t readI2C(uint8_t addy){
 }
 
 
-
+//first write slave addy
+//sec write slave reg
+//third read return 
 
 
 
