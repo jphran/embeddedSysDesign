@@ -52,9 +52,11 @@ void Error_Handler(void);
 /* USER CODE BEGIN PFP */
 /* Private function prototypes -----------------------------------------------*/
 //blocking method. opens i2c transaction for 1 byte, returns 1 if success
-int writeI2C(uint8_t addy, uint8_t msg);
-//blocking method. reads i2c transaction for 1 byte, returns msg if success
-uint8_t readI2C(uint8_t addy);
+
+//blocking method. reads i2c transaction for n bytes
+int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, uint8_t *returnMsg);
+//blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
+void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
 
 /* USER CODE END PFP */
 
@@ -154,122 +156,109 @@ int main(void)
 	const uint8_t expectedVal = 0xD4;
 	const uint8_t ctrlReg = 0x20;
 	const uint8_t ctrlCmd = 0xB; //0b001011
-	const uint8_t xLReg = 0x28;
-	const uint8_t xHReg = 0x29;
-	const uint8_t yLReg = 0x2A;
-	const uint8_t yHReg = 0x2B;
-	const uint8_t acclReg[] = {xLReg,xHReg,yLReg,yHReg};
+	const uint8_t accelReg = 0xA8; 
 	
-	float accX = NULL;
-	float accY = NULL;
-	uint8_t returnMsg = NULL;
+	int16_t accX = NULL;
+	int16_t accY = NULL;
+	uint8_t returnMsg[4];
 	
 	//init gyro
-	writeI2C(gyroAddress, gyroWhoAmI);
-	writeI2C(ctrlReg, ctrlCmd);
-	
-	const float thres = 10000;
-	
+	uint8_t ctrlArr[] = {ctrlReg, ctrlCmd};
+	writeI2C(gyroAddress, 2, ctrlArr);
+		
+	const int thres = 10000;
+
   while (1)
   {
-		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
+		readI2C(gyroAddress, accelReg, 4, returnMsg);
 		
-		accX = (readI2C(acclReg[1]) << 8) | readI2C(acclReg[0]);
-		accY = (readI2C(acclReg[3]) << 8) | readI2C(acclReg[2]);
+		//concatenate
+		accX = (returnMsg[1] << 8) | (returnMsg[0]);
+		accY = (returnMsg[3] << 8) | (returnMsg[2]);
 		
 		if(accX >= thres){
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-		}
-		else if(accX <= -thres){
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-		}
-		else{
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET); //red
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
-		}
-		
-		if(accY >= thres){
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
 		}
 		else if(accX <= -thres){
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
 			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
 		}
-		else{
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //blue
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
+		
+		if(accY >= thres){
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+		}
+		else if(accY <= -thres){
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
 		}
 		
 		
 		HAL_Delay(100);
 
   }
-  /* USER CODE END 3 */
 
 }
 
 
-int writeI2C(uint8_t addy, uint8_t msg){
+void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg){
 	//configure transaction params
-	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear NBYTES and SADD
-	I2C2->CR2 |= (addy << 1); //set SADD (slave address)
+	I2C2->CR2 = 0; //clear CR2 register
+	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
 	I2C2->CR2 &= ~(1 << 10); //set write direction
-	I2C2->CR2 |= (1 << 16); //set 1 byte to transfer
+	I2C2->CR2 |= (numBytes << 16); //set  byte to transfer
 	I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
 	
-	//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
-	while(!(I2C2->ISR & (1 << 1))){ 
-		if(I2C2->ISR & (1 << 4)){ //if NACKF set
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-			return 0;
+	for(int i = 0; i < numBytes; ++i){
+		//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
+		while(!(I2C2->ISR & (1 << 1))){ 
+			if(I2C2->ISR & (1 << 4)){ //if NACKF set
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
+			}
 		}
+		
+		//send slave msg
+		I2C2->TXDR = msg[i];
 	}
-	
-	//send who am i register address
-	I2C2->TXDR = msg;
 	
 	//wait till transfer complete flag is set
 	while(!(I2C2->ISR & (1 << 6))){
 		//do nothing
 	}
-	return 1;
 }
 
 
-uint8_t readI2C(uint8_t addy){
-	//config transaction params
-	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear NBYTES and SADD
-	I2C2->CR2 |= (addy << 1); //set SADD (slave address)
+int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, uint8_t *returnMsg){
+	////////////////write slave address ////////////////////////////
+	writeI2C(slaveAddy, 1, &regAddy);
+	
+	//configure transaction params	
+	I2C2->CR2 = 0; //clear entire register NBYTES and SADD
+	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
 	I2C2->CR2 |= (1 << 10); //set read direction
-	I2C2->CR2 |= (1 << 16); //set 1 byte to transfer
+	I2C2->CR2 |= (numBytes << 16); //set bytes to transfer
 	I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
-	
-	//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
-	while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
-		if(I2C2->ISR & (1<<4)){ //if NACKF set
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-			return NULL;	//throw err
+		
+	//////////////////read slave msg////////////////////////////
+	for(int i = 0; i < numBytes; ++i){
+		//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
+		while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
+			if(I2C2->ISR & (1<<4)){ //if NACKF set
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
+				return NULL;	//throw err
+			}
 		}
+		
+		returnMsg[i] = I2C2->RXDR;
 	}
-	
 	
 	//wait till transfer complete flag is set
 	while(!(I2C2->ISR & (1 << 6))){
 		//do nothing
 	}
-	
 	I2C2->CR2 |= (1 << 14); //set stop bit
-	
-	return I2C2->RXDR;
 }
-
-
-//first write slave addy
-//sec write slave reg
-//third read return 
 
 
 

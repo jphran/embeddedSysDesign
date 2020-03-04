@@ -28,14 +28,16 @@ Project File Date:  02/26/2020
 *** Using Compiler 'V5.06 update 3 (build 300)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'Lab5_I2C'
 compiling main.c...
-../Src/main.c(154): warning:  #177-D: variable "expectedVal" was declared but never referenced
+../Src/main.c(155): warning:  #177-D: variable "gyroWhoAmI" was declared but never referenced
+  	const uint8_t gyroWhoAmI = 0x0F; //lab5.pdf pg 10
+../Src/main.c(156): warning:  #177-D: variable "expectedVal" was declared but never referenced
   	const uint8_t expectedVal = 0xD4;
-../Src/main.c(165): warning:  #177-D: variable "returnMsg" was declared but never referenced
-  	uint8_t returnMsg = NULL;
-../Src/main.c: 2 warnings, 0 errors
+../Src/main.c(262): warning:  #940-D: missing return statement at end of non-void function "readI2C"
+  }
+../Src/main.c: 3 warnings, 0 errors
 linking...
-Program Size: Code=3388 RO-data=320 RW-data=8 ZI-data=1024  
-"Lab5_I2C\Lab5_I2C.axf" - 0 Error(s), 2 Warning(s).
+Program Size: Code=3196 RO-data=320 RW-data=8 ZI-data=1024  
+"Lab5_I2C\Lab5_I2C.axf" - 0 Error(s), 3 Warning(s).
 
 <h2>Software Packages used:</h2>
 
@@ -53,7 +55,7 @@ Package Vendor: ARM
 <h2>Collection of Component Files used:</h2>
 
    * Component: ARM::CMSIS:CORE:4.3.0
-Build Time Elapsed:  00:00:03
+Build Time Elapsed:  00:00:02
 </pre>
 </body>
 </html>
