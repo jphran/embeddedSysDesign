@@ -99,7 +99,7 @@ int main(void)
 															GPIO_SPEED_FREQ_LOW,
 															GPIO_NOPULL};
 		
-	HAL_GPIO_Init(GPIOC, &ADCinitStr); //enable gpio LED pins	
+	HAL_GPIO_Init(GPIOC, &ADCinitStr); //enable gpio pins	
 	
 	
 	RCC->APB2ENR |= RCC_APB2ENR_ADCEN; //enable ADC clock
@@ -132,17 +132,49 @@ int main(void)
 	
 	//start adc
 	ADC1->CR |= (1 << 2); //start conversion, pg 258
+									
+
+	//DAC setup, DAC_OUT1 which is PA4
+	RCC->AHBENR |= RCC_AHBENR_GPIOAEN; //enable gpio a clk
+	RCC->APB1ENR |= RCC_APB1ENR_DACEN; //enable dac clk
+	
+	//set up ADC in pin
+	GPIO_InitTypeDef DACinitStr = {GPIO_PIN_4,
+															GPIO_MODE_ANALOG, 
+															GPIO_SPEED_FREQ_LOW,
+															GPIO_NOPULL};
+		
+	HAL_GPIO_Init(GPIOA, &DACinitStr); //enable gpio pins	
 															
+	DAC1->CR |= (1 << 3) | (1 << 4) | (1 << 5); // enable software trigger on dac ch 1
+	DAC1->CR |= (1 << 0); //enable dac
+															
+	HAL_Delay(5);														
+	// Sine Wave: 8-bit, 32 samples/cycle
+	const uint8_t sine_table[32] = {127,151,175,197,216,232,244,251,254,251,244,
+	232,216,197,175,151,127,102,78,56,37,21,9,2,0,2,9,21,37,56,78,102};
+	// Triangle Wave: 8-bit, 32 samples/cycle
+	const uint8_t triangle_table[32] = {0,15,31,47,63,79,95,111,127,142,158,174,
+	190,206,222,238,254,238,222,206,190,174,158,142,127,111,95,79,63,47,31,15};
+	// Sawtooth Wave: 8-bit, 32 samples/cycle
+	const uint8_t sawtooth_table[32] = {0,7,15,23,31,39,47,55,63,71,79,87,95,103,
+	111,119,127,134,142,150,158,166,174,182,190,198,206,214,222,230,238,246};
+	// Square Wave: 8-bit, 32 samples/cycle
+	const uint8_t square_table[32] = {254,254,254,254,254,254,254,254,254,254,
+	254,254,254,254,254,254,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
+														
+	
 	/* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-	uint8_t voltageVal = 0;
-
-	
+	unsigned int i = 0;
   while (1)
   {
-		ledPotIndicator(readADC());
+		//ledPotIndicator(readADC()); //problem 1
+		
+		DAC1->DHR8R1 = triangle_table[(i++ % 32)];
+		HAL_Delay(1); //delay 1 ms for DAC output
 	}
   /* USER CODE END 3 */
 
@@ -159,6 +191,7 @@ uint16_t readADC(void)
 	return ADC1->DR;
 }
 
+//turns on leds in wheel to indicate potentiometer position
 void ledPotIndicator(uint16_t voltageVal)
 {
 	uint8_t redOnAt = 10;

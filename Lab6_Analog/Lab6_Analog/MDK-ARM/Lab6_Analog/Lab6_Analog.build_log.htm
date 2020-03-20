@@ -40,12 +40,16 @@ DC1->CR & (1 << 31)); //do nothing
 ../Src/main.c(116): warning:  #68-D: integer conversion resulted in a change of sign
   	while (
 DC1->CR & (1 << 31)); //do nothing
-../Src/main.c(140): warning:  #177-D: variable "voltageVal" was declared but never referenced
-  	uint8_t voltageVal = 0;
-../Src/main.c: 5 warnings, 0 errors
+../Src/main.c(154): warning:  #177-D: variable "sine_table" was declared but never referenced
+  	const uint8_t sine_table[32] = {127,151,175,197,216,232,244,251,254,251,244,
+../Src/main.c(160): warning:  #177-D: variable "sawtooth_table" was declared but never referenced
+  	const uint8_t sawtooth_table[32] = {0,7,15,23,31,39,47,55,63,71,79,87,95,103,
+../Src/main.c(163): warning:  #177-D: variable "square_table" was declared but never referenced
+  	const uint8_t square_table[32] = {254,254,254,254,254,254,254,254,254,254,
+../Src/main.c: 7 warnings, 0 errors
 linking...
-Program Size: Code=2900 RO-data=280 RW-data=8 ZI-data=1024  
-"Lab6_Analog\Lab6_Analog.axf" - 0 Error(s), 5 Warning(s).
+Program Size: Code=3056 RO-data=300 RW-data=8 ZI-data=1024  
+"Lab6_Analog\Lab6_Analog.axf" - 0 Error(s), 7 Warning(s).
 
 <h2>Software Packages used:</h2>
 
