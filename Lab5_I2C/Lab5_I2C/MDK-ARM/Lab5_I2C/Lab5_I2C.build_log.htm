@@ -3,38 +3,56 @@
 <pre>
 <h1>µVision Build Log</h1>
 <h2>Tool Versions:</h2>
-IDE-Version: µVision V5.21.1.0
-Copyright (C) 2016 ARM Ltd and ARM Germany GmbH. All rights reserved.
-License Information: Doug Ressler, U. of Utah, Electrical & Computer Engineering, LIC=----
+IDE-Version: µVision V5.29.0.0
+Copyright (C) 2019 ARM Ltd and ARM Germany GmbH. All rights reserved.
+License Information: keil jay franny, u of u, LIC=----
  
 Tool Versions:
-Toolchain:       MDK-Lite  Version: 5.21a
+Toolchain:       MDK-Lite  Version: 5.29.0.0
 Toolchain Path:  C:\Keil_v5\ARM\ARMCC\Bin
-C Compiler:      Armcc.exe V5.06 update 3 (build 300)
-Assembler:       Armasm.exe V5.06 update 3 (build 300)
-Linker/Locator:  ArmLink.exe V5.06 update 3 (build 300)
-Library Manager: ArmAr.exe V5.06 update 3 (build 300)
-Hex Converter:   FromElf.exe V5.06 update 3 (build 300)
-CPU DLL:         SARMCM3.DLL V5.21a
-Dialog DLL:      DARMCM1.DLL V1.14.0.0
-Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V2.0.18.0
-Dialog DLL:      TARMCM1.DLL V1.10.0.0
+C Compiler:      Armcc.exe V5.06 update 6 (build 750)
+Assembler:       Armasm.exe V5.06 update 6 (build 750)
+Linker/Locator:  ArmLink.exe V5.06 update 6 (build 750)
+Library Manager: ArmAr.exe V5.06 update 6 (build 750)
+Hex Converter:   FromElf.exe V5.06 update 6 (build 750)
+CPU DLL:         SARMCM3.DLL V5.29.0.0
+Dialog DLL:      DARMCM1.DLL V1.19.2.0
+Target DLL:      STLink\ST-LINKIII-KEIL_SWO.dll V3.0.7.0
+Dialog DLL:      TARMCM1.DLL V1.14.1.0
  
 <h2>Project:</h2>
-X:\Documents\Github\Lab5_I2C\Lab5_I2C\MDK-ARM\Lab5_I2C.uvprojx
-Project File Date:  02/26/2020
+C:\Users\u1063296\Documents\embeddedSysDesign\Lab5_I2C\Lab5_I2C\MDK-ARM\Lab5_I2C.uvprojx
+Project File Date:  04/27/2020
 
 <h2>Output:</h2>
-*** Using Compiler 'V5.06 update 3 (build 300)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
+*** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'Lab5_I2C'
+compiling stm32f0xx_hal_flash_ex.c...
+compiling stm32f0xx_hal_tim.c...
+compiling system_stm32f0xx.c...
+compiling stm32f0xx_hal_msp.c...
+compiling stm32f0xx_it.c...
+compiling stm32f0xx_hal_i2c_ex.c...
 compiling main.c...
-../Src/main.c(155): warning:  #177-D: variable "gyroWhoAmI" was declared but never referenced
+../Src/main.c(155): warning:  #177-D: variable "gyroWhoAmI"  was declared but never referenced
   	const uint8_t gyroWhoAmI = 0x0F; //lab5.pdf pg 10
-../Src/main.c(156): warning:  #177-D: variable "expectedVal" was declared but never referenced
+../Src/main.c(156): warning:  #177-D: variable "expectedVal"  was declared but never referenced
   	const uint8_t expectedVal = 0xD4;
-../Src/main.c(262): warning:  #940-D: missing return statement at end of non-void function "readI2C"
+../Src/main.c(261): warning:  #940-D: missing return statement at end of non-void function "readI2C" 
   }
 ../Src/main.c: 3 warnings, 0 errors
+compiling stm32f0xx_hal.c...
+compiling stm32f0xx_hal_pwr.c...
+compiling stm32f0xx_hal_tim_ex.c...
+compiling stm32f0xx_hal_gpio.c...
+compiling stm32f0xx_hal_rcc_ex.c...
+assembling startup_stm32f072xb.s...
+compiling stm32f0xx_hal_dma.c...
+compiling stm32f0xx_hal_rcc.c...
+compiling stm32f0xx_hal_pwr_ex.c...
+compiling stm32f0xx_hal_cortex.c...
+compiling stm32f0xx_hal_flash.c...
+compiling stm32f0xx_hal_i2c.c...
 linking...
 Program Size: Code=3196 RO-data=320 RW-data=8 ZI-data=1024  
 "Lab5_I2C\Lab5_I2C.axf" - 0 Error(s), 3 Warning(s).
@@ -42,20 +60,25 @@ Program Size: Code=3196 RO-data=320 RW-data=8 ZI-data=1024
 <h2>Software Packages used:</h2>
 
 Package Vendor: ARM
-                http://www.keil.com/pack/ARM.CMSIS.4.5.0.pack
-                ARM::CMSIS:CORE:4.3.0
+                http://www.keil.com/pack/ARM.CMSIS.5.6.0.pack
+                ARM.CMSIS.5.6.0
                 CMSIS (Cortex Microcontroller Software Interface Standard)
-   * Component: CORE Version: 4.3.0
+   * Component: CORE Version: 5.3.0
+
+Package Vendor: Keil
+                http://www.keil.com/pack/Keil.STM32F0xx_DFP.2.0.0.pack
+                Keil.STM32F0xx_DFP.2.0.0
+                STMicroelectronics STM32F0 Series Device Support, Drivers and Examples
 
 <h2>Collection of Component include folders:</h2>
-  X:\Documents\Github\Lab5_I2C\Lab5_I2C\MDK-ARM\RTE
-  C:\Keil_v5\ARM\PACK\ARM\CMSIS\4.5.0\CMSIS\Include
-  C:\Keil_v5\ARM\PACK\Keil\STM32F0xx_DFP\2.0.0\Drivers\CMSIS\Device\ST\STM32F0xx\Include
+  .\RTE\_Lab5_I2C
+  C:\Users\u1063296\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include
+  C:\Users\u1063296\AppData\Local\Arm\Packs\Keil\STM32F0xx_DFP\2.0.0\Drivers\CMSIS\Device\ST\STM32F0xx\Include
 
 <h2>Collection of Component Files used:</h2>
 
-   * Component: ARM::CMSIS:CORE:4.3.0
-Build Time Elapsed:  00:00:02
+   * Component: ARM::CMSIS:CORE:5.3.0
+Build Time Elapsed:  00:00:08
 </pre>
 </body>
 </html>
