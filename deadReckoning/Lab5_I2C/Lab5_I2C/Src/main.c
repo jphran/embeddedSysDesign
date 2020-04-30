@@ -159,12 +159,16 @@ int main(void)
 	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
 	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
 	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
-	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; 
+	const uint8_t mMPU_CONFIG_REG = 0x1AU;
+	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
 	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
 	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
 	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
 	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
 	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
+	const uint8_t mMPU_MAG_CTRL_REG = 0x0AU;
+	const uint8_t mMPU_MAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
+	const uint8_t mMPU_MAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
 
 	uint8_t whoAmIReturn[1];
 	signed char accelOutRaw[6];
@@ -173,13 +177,16 @@ int main(void)
 	signed char gyroOutRaw[6];
 	float gyroOut[3];
 	char gyroString[sizeof(float)];
+	signed char magOutRaw[6];
+	float magOut[3];
+	char magString[sizeof(float)];
 	
-	//init mpu
-	uint8_t configArr[] = {mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
-	writeI2C(mMPU_ADDR, 4, configArr);
+	//init mpu without Mag init
+	uint8_t configArr[] = {mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET, mMPU_MAG_CTRL_REG, mMPU_MAG_CTRL_SET};
+	writeI2C(mMPU_ADDR, 6, configArr);
 		
-	// const int thres = 10000;
-
+	greenOn;
+	
 	while (1)
 	{
 //		//check comms are up with the correct slave
@@ -195,33 +202,38 @@ int main(void)
 //		}
 		
 		//read data
-		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
-		//readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
+//		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
+//		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
+		readI2C(mMPU_ADDR, mMPU_MAG_OUT_REG, 6, magOutRaw);
 
 		//assemble data
 		for (int i = 0; i < 3; i++)
 		{
-			//accel
-			rawData_to_int.rawData[1] = accelOutRaw[i*2];
-			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
-			accelOut[i] = rawData_to_int.i * 40.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (determined from datasheet)
-			//gyro
+//			//accel (big-endian)
+//			rawData_to_int.rawData[1] = accelOutRaw[i*2];
+//			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
+//			accelOut[i] = rawData_to_int.i * 40.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
+//			//gyro (big-endian)
 //			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
 //			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
-//			accelOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //250.0 => +250.0 dps (setup in gyro config), 2^16 (determined from datasheet)
+//			gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
+			//mag (little-endian)
+			rawData_to_int.rawData[0] = magOutRaw[i*2];
+			rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
+			magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
 		}
 
 	
-		USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
-		
-		for (int i = 0; i < 3; i++)
-		{
-			sprintf(accelString, "%f",accelOut[i]);
-			USART_sendString(accelString);
-			USART_sendString("\n\r");
-		}
-		
-//		USART_sendString("\n****Gyroscopic (dps) [x, y, z]'****\n\r");
+//		USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
+//		
+//		for (int i = 0; i < 3; i++)
+//		{
+//			sprintf(accelString, "%f",accelOut[i]);
+//			USART_sendString(accelString);
+//			USART_sendString("\n\r");
+//		}
+//		
+//		USART_sendString("\n****Gyro (dps) [x, y, z]'****\n\r");
 //		
 //		for (int i = 0; i < 3; i++)
 //		{
@@ -229,6 +241,15 @@ int main(void)
 //			USART_sendString(gyroString);
 //			USART_sendString("\n\r");
 //		}
+		
+		USART_sendString("\n****Mag (uT) [x, y, z]'****\n\r");
+		
+		for (int i = 0; i < 3; i++)
+		{
+			sprintf(magString, "%f",magOut[i]);
+			USART_sendString(magString);
+			USART_sendString("\n\r");
+		}
 		
 		
 
@@ -289,7 +310,8 @@ int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed ch
 	writeI2C(slaveAddy, 1, &regAddy);
 
 	//configure transaction params	
-	I2C2->CR2 = 0; //clear entire register NBYTES and SADD
+	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
+	//I2C2->CR2 = 0; //clear entire register NBYTES and SADD
 	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
 	I2C2->CR2 |= (1 << 10); //set read direction
 	I2C2->CR2 |= (numBytes << 16); //set bytes to transfer
