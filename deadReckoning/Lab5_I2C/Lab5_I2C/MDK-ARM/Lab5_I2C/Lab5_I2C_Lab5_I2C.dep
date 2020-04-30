@@ -57,7 +57,7 @@ I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_i2c_ex.h)(0x5EA4FAE8)
 I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_pwr.h)(0x5EA4FAE8)
 I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_pwr_ex.h)(0x5EA4FAE8)
 I (../Inc/stm32f0xx_it.h)(0x5EA4FAE8)
-F (../Src/main.c)(0x5EA77F0F)(-c --cpu Cortex-M0 -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F0xx_HAL_Driver/Inc -I ../Drivers/STM32F0xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F0xx/Include -I ../Drivers/CMSIS/Include --C99-I.\RTE\_Lab5_I2C-IC:\Users\u1063296\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\u1063296\AppData\Local\Arm\Packs\Keil\STM32F0xx_DFP\2.0.0\Drivers\CMSIS\Device\ST\STM32F0xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F072xB -DUSE_HAL_DRIVER -DSTM32F072xB-o lab5_i2c\main.o --omf_browse lab5_i2c\main.crf --depend lab5_i2c\main.d)
+F (../Src/main.c)(0x5EAB2A85)(-c --cpu Cortex-M0 -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F0xx_HAL_Driver/Inc -I ../Drivers/STM32F0xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F0xx/Include -I ../Drivers/CMSIS/Include --C99-I.\RTE\_Lab5_I2C-IC:\Users\u1063296\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\u1063296\AppData\Local\Arm\Packs\Keil\STM32F0xx_DFP\2.0.0\Drivers\CMSIS\Device\ST\STM32F0xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F072xB -DUSE_HAL_DRIVER -DSTM32F072xB-o lab5_i2c\main.o --omf_browse lab5_i2c\main.crf --depend lab5_i2c\main.d)
 I (../Inc/main.h)(0x5EA4FAE8)
 I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal.h)(0x5EA4FAE8)
 I (../Inc/stm32f0xx_hal_conf.h)(0x5EA4FAE8)
@@ -85,6 +85,8 @@ I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_i2c.h)(0x5EA4FAE8)
 I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_i2c_ex.h)(0x5EA4FAE8)
 I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_pwr.h)(0x5EA4FAE8)
 I (../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_pwr_ex.h)(0x5EA4FAE8)
+I (C:\Keil_v5\ARM\ARMCC\include\string.h)(0x5D9B96F8)
+I (C:\Keil_v5\ARM\ARMCC\include\math.h)(0x5D9B96F2)
 F (../Drivers/CMSIS/Device/ST/STM32F0xx/Source/Templates/system_stm32f0xx.c)(0x5EA4FAE8)(-c --cpu Cortex-M0 -D__EVAL -D__MICROLIB -g -O3 --apcs=interwork --split_sections -I ../Inc -I ../Drivers/STM32F0xx_HAL_Driver/Inc -I ../Drivers/STM32F0xx_HAL_Driver/Inc/Legacy -I ../Drivers/CMSIS/Device/ST/STM32F0xx/Include -I ../Drivers/CMSIS/Include --C99-I.\RTE\_Lab5_I2C-IC:\Users\u1063296\AppData\Local\Arm\Packs\ARM\CMSIS\5.6.0\CMSIS\Core\Include-IC:\Users\u1063296\AppData\Local\Arm\Packs\Keil\STM32F0xx_DFP\2.0.0\Drivers\CMSIS\Device\ST\STM32F0xx\Include-D__UVISION_VERSION="529" -D_RTE_ -DSTM32F072xB -DUSE_HAL_DRIVER -DSTM32F072xB-o lab5_i2c\system_stm32f0xx.o --omf_browse lab5_i2c\system_stm32f0xx.crf --depend lab5_i2c\system_stm32f0xx.d)
 I (../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f0xx.h)(0x5EA4FAE8)
 I (../Drivers/CMSIS/Device/ST/STM32F0xx/Include/stm32f072xb.h)(0x5EA4FAE8)

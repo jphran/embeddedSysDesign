@@ -36,13 +36,44 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f0xx_hal.h"
+#include <string.h>
+#include <math.h>
+#include <stdio.h>
 
+//LED's
+#define redOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET) //red
+#define blueOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET); //blue
+#define orangeOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET); //orange
+#define greenOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET)	// green
+#define redOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET) //red
+#define blueOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //blue
+#define orangeOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
+#define greenOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
+
+//Macros
+
+//Typedefs
+union u{
+    int16_t i;
+    char rawData[sizeof(int16_t)];
+} rawData_to_int;
 
 void SystemClock_Config(void);
 void Error_Handler(void);
 
+//*******************USART***********************
+const unsigned int desBaudRate = 115200;
+// transmit a single char over USART
+void USART_sendChar(char toSend);
+//transmit a string over USART
+void USART_sendString(char * toSend);
+//receive a char over USART
+char USART_readChar(void);
+//set up USART interrupt handler
+void USART3_4_IRQHandler(void);
+
 //blocking method. reads i2c transaction for n bytes
-int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, uint8_t *returnMsg);
+int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, char *returnMsg);
 //blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
 void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
 
@@ -61,6 +92,24 @@ int main(void)
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //enable gpiob clk
 	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //enable i2c2 
 
+	//set up USART3 on PC4(TX) and PC5(RX)
+	GPIO_InitTypeDef initStr = {GPIO_PIN_4 | GPIO_PIN_5,
+															GPIO_MODE_AF_PP, //set gpio to alternate function mode
+															GPIO_SPEED_FREQ_LOW,
+															GPIO_NOPULL};
+		
+	HAL_GPIO_Init(GPIOC, &initStr); //enable gpio PC4/5 pins
+	GPIOC->AFR[0] |= (1 << 16) | (1 << 20); // switch PC4/5 to AF1
+							
+	//set up USART3
+	RCC->APB1ENR |= RCC_APB1ENR_USART3EN; //enable usart3 clk
+	USART3->BRR = (int) (HAL_RCC_GetHCLKFreq()/desBaudRate); //set BRR to 416/417 which yields an err of <1% on 115200 baud
+	USART3->CR1 |= (1 << 2) | (1 << 3); //enable transmit and receive (periphrefmanual.pdf, pg 734)
+	USART3->CR1 |= (1 << 5); //enable receive register not empty interrupt
+	USART3->CR1 |= (1 << 0); //enable USART3
+
+
+
 
 	//set up leds on board
 	GPIO_InitTypeDef LEDinitStr = {GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_9,
@@ -71,17 +120,17 @@ int main(void)
 	HAL_GPIO_Init(GPIOC, &LEDinitStr); //enable gpio LED pins	
 	// turn off led's
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET); //red
-	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET); //blue
+	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //blue
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
 
 	//enable sda (11) and scl (13)
-	GPIO_InitTypeDef initStr = {GPIO_PIN_11 | GPIO_PIN_13,
+	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
 															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
 															GPIO_SPEED_FREQ_LOW,
 															GPIO_PULLUP};
 		
-	HAL_GPIO_Init(GPIOB, &initStr); //enable gpio PC11/13 pin
+	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
 																																
 	//enable af1 on PB11 and enable af5 on pb13
 	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
@@ -104,91 +153,99 @@ int main(void)
 	* is not used and the mask must be shifted by one.
 	*/
 	// I2C2->CR2 |= (42 << 16) | (0x14 << 1);
-	/* USER CODE END 2 */
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
+
+	//For use with the MPU 9250
 	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
-	const uint8_t mMPU_WHO_AM_I_ADDR = 0x75U; //mpu register map pg 9
-	const uint8_t mMPU_WHO_AM_I_RETURN = 0x73U; //mpu register map pg 44
-	// const uint8_t ctrlReg = 0x20;
-	// const uint8_t ctrlCmd = 0xB; //0b001011
-	// const uint8_t accelReg = 0xA8; 
+	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
+	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
+	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; 
+	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
+	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
+	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
+	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
 
-	// int16_t accX = NULL;
-	// int16_t accY = NULL;
-	uint8_t returnMsg[1];
-
-	//init gyro
-	// uint8_t ctrlArr[] = {ctrlReg, ctrlCmd};
-	// writeI2C(gyroAddress, 2, ctrlArr);
+	uint8_t whoAmIReturn[1];
+	char accelOutRaw[6];
+	float accelOut[3];
+	char accelString[sizeof(float)];
+	
+	//init mpu
+	uint8_t configArr[] = {mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
+	writeI2C(mMPU_ADDR, 4, configArr);
 		
 	// const int thres = 10000;
 
 	while (1)
 	{
+//		//check comms are up with the correct slave
+//		readI2C(mMPU_ADDR, mMPU_WHO_AM_I_REG, 1, whoAmIReturn);
 
-		// //configure transaction params
-		// I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
-		// I2C2->CR2 |= (mMPU_ADDR << 1); //set SADD (slave address)
-		// I2C2->CR2 |= (1 << 16); //set NBYTES (bytes to transfer)
-		// I2C2->CR2 &= ~(1 << 10); //set write direction
-		// I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
+//		if(whoAmIReturn[0] == mMPU_WHO_AM_I_VAL)
+//		{
+//			greenOn;
+//		}
+//		else
+//		{
+//			redOn;
+//		}
+		
+		//read data
+		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
 
-		// //wait unitl TXIS flags are set, periphrefman.pdf pg. 680
-		// while(!(I2C2->ISR & (1 << 1))){ 
-		// 	if(I2C2->ISR & (1 << 4)){ //if NACKF set
-		// 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-		// 		HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
-		// 	}
-		// }
-
-
-		readI2C(mMPU_ADDR, mMPU_WHO_AM_I_ADDR, 1, returnMsg);
-
-
-		if(returnMsg[0] == mMPU_WHO_AM_I_RETURN)
+		//assemble data
+		//accelOut[0] = ((accelOutRaw[0] << 8) | (accelOutRaw[1])) / 16384.0; //converts to +- 2g res
+		for (int i = 0; i < 3; i++)
 		{
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);	// green
+			rawData_to_int.rawData[1] = accelOutRaw[i*2];
+			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
+			//signed int temp = ((accelOutRaw[i*2] << 8) | (accelOutRaw[(i*2)+1]));
+			accelOut[i] = rawData_to_int.i / 16384.0; // * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (determined from datasheet)
 		}
-		else
-		{
-			HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);	// orange
-		}
-		
-		
 
-		//concatenate
-		// accX = (returnMsg[1] << 8) | (returnMsg[0]);
-		// accY = (returnMsg[3] << 8) | (returnMsg[2]);
+	
+		USART_sendString("\n****Acceleration****\n\r");
+//		floatToString.f = accelOut[0];
+//		for (int i = 0; i < sizeof(float); i++)
+//		{
+//			USART_sendChar(floatToString.string[i]);
+//		}
+		for (int i = 0; i < 3; i++)
+		{
+//			floatToString.f = accelOut[i];
+//			USART_sendString(floatToString.string);
+			sprintf(accelString, "%f",accelOut[i]);
+			USART_sendString(accelString);
+			USART_sendString("\n\r");
+		}
+		//USART_sendString((char *) &accelOut[0]);
+		//USART_sendString(strcat("X: ", accelString));
+
 		
-		// if(accX >= thres){
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET);
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-		// }
-		// else if(accX <= -thres){
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
-		// }
-		
-		// if(accY >= thres){
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
-		// }
-		// else if(accY <= -thres){
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
-		// 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
-		// }
-		
-		
-		HAL_Delay(100);
+		HAL_Delay(1000);
 
 	}
 
 }
 
 
-void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg){
+void USART_sendChar(char toSend){
+	while(!(USART3->ISR & USART_ISR_TXE)){ //wait till transmit register is empty
+		//do nothing
+	}
+	
+	USART3->TDR = toSend; //send data to transmit register
+}
+
+void USART_sendString(char *toSend){ //TODO: figure out why 'for(int i = 0; i < sizeof(toSend)/sizeof(char); i++) doesnt' work
+	unsigned int i = 0;
+	while(toSend[i] != '\0'){
+		USART_sendChar(toSend[i++]);
+	}
+}
+
+
+void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t* msg){
 	//configure transaction params
 	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
 	// I2C2->CR2 = 0; //clear CR2 register
@@ -201,30 +258,24 @@ void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg){
 		//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
 		while(!(I2C2->ISR & (1 << 1))){ 
 			if(I2C2->ISR & (1 << 4)){ //if NACKF set
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-				//HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err, red led on
 			}
 
 		}
-								HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
-
-		
 		//send slave msg
 		I2C2->TXDR = msg[i];
 	}
-	
 	//wait till transfer complete flag is set
 	while(!(I2C2->ISR & (1 << 6))){
 		//do nothing
-		
 	}
 }
 
 
-int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, uint8_t *returnMsg){
+int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, char* returnMsg){
 	////////////////write slave address ////////////////////////////
 	writeI2C(slaveAddy, 1, &regAddy);
-	
+
 	//configure transaction params	
 	I2C2->CR2 = 0; //clear entire register NBYTES and SADD
 	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
@@ -237,21 +288,17 @@ int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, uint8_t *
 		//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
 		while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
 			if(I2C2->ISR & (1<<4)){ //if NACKF set
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err, red LED on
 				return NULL;	//throw err
 			}
 		}
-		
 		returnMsg[i] = I2C2->RXDR;
 	}
-	
 	//wait till transfer complete flag is set
 	while(!(I2C2->ISR & (1 << 6))){
 		//do nothing
 	}
 	I2C2->CR2 |= (1 << 14); //set stop bit
-	
 	return 1;
 }
 
