@@ -73,7 +73,7 @@ char USART_readChar(void);
 void USART3_4_IRQHandler(void);
 
 //blocking method. reads i2c transaction for n bytes
-int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, char *returnMsg);
+int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char *returnMsg);
 //blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
 void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
 
@@ -161,14 +161,18 @@ int main(void)
 	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
 	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; 
 	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
+	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
 	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
 	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
 	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
 
 	uint8_t whoAmIReturn[1];
-	char accelOutRaw[6];
+	signed char accelOutRaw[6];
 	float accelOut[3];
 	char accelString[sizeof(float)];
+	signed char gyroOutRaw[6];
+	float gyroOut[3];
+	char gyroString[sizeof(float)];
 	
 	//init mpu
 	uint8_t configArr[] = {mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
@@ -192,34 +196,42 @@ int main(void)
 		
 		//read data
 		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
+		//readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
 
 		//assemble data
-		//accelOut[0] = ((accelOutRaw[0] << 8) | (accelOutRaw[1])) / 16384.0; //converts to +- 2g res
 		for (int i = 0; i < 3; i++)
 		{
+			//accel
 			rawData_to_int.rawData[1] = accelOutRaw[i*2];
 			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
-			//signed int temp = ((accelOutRaw[i*2] << 8) | (accelOutRaw[(i*2)+1]));
-			accelOut[i] = rawData_to_int.i / 16384.0; // * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (determined from datasheet)
+			accelOut[i] = rawData_to_int.i * 40.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (determined from datasheet)
+			//gyro
+//			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
+//			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
+//			accelOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //250.0 => +250.0 dps (setup in gyro config), 2^16 (determined from datasheet)
 		}
 
 	
-		USART_sendString("\n****Acceleration****\n\r");
-//		floatToString.f = accelOut[0];
-//		for (int i = 0; i < sizeof(float); i++)
-//		{
-//			USART_sendChar(floatToString.string[i]);
-//		}
+		USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
+		
 		for (int i = 0; i < 3; i++)
 		{
-//			floatToString.f = accelOut[i];
-//			USART_sendString(floatToString.string);
 			sprintf(accelString, "%f",accelOut[i]);
 			USART_sendString(accelString);
 			USART_sendString("\n\r");
 		}
-		//USART_sendString((char *) &accelOut[0]);
-		//USART_sendString(strcat("X: ", accelString));
+		
+//		USART_sendString("\n****Gyroscopic (dps) [x, y, z]'****\n\r");
+//		
+//		for (int i = 0; i < 3; i++)
+//		{
+//			sprintf(gyroString, "%f",gyroOut[i]);
+//			USART_sendString(gyroString);
+//			USART_sendString("\n\r");
+//		}
+		
+		
+
 
 		
 		HAL_Delay(1000);
@@ -272,7 +284,7 @@ void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t* msg){
 }
 
 
-int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, char* returnMsg){
+int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char* returnMsg){
 	////////////////write slave address ////////////////////////////
 	writeI2C(slaveAddy, 1, &regAddy);
 
