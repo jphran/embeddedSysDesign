@@ -19,6 +19,6 @@
 "lab4_usart\stm32f0xx_hal_pwr.o"
 "lab4_usart\stm32f0xx_hal_gpio.o"
 --library_type=microlib --strict --scatter "Lab4_USART\Lab4_USART.sct"
---diag_suppress=L6329 --summary_stderr --info summarysizes --map --xref --callgraph --symbols
+--diag_suppress=L6329 --summary_stderr --info summarysizes --map --load_addr_map_info --xref --callgraph --symbols
 --info sizes --info totals --info unused --info veneers
 --list "Lab4_USART.map" -o Lab4_USART\Lab4_USART.axf

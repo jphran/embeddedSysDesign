@@ -40,17 +40,16 @@
 #include <math.h>
 #include <stdio.h>
 
-//LED's
+//Macros
 #define redOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET) //red
-#define blueOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET); //blue
-#define orangeOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET); //orange
+#define blueOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_SET) //blue
+#define orangeOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_SET) //orange
 #define greenOn HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_SET)	// green
 #define redOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET) //red
-#define blueOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET); //blue
-#define orangeOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
-#define greenOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
-
-//Macros
+#define blueOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET) //blue
+#define orangeOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET) //orange
+#define greenOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET)	// green
+#define M_PI 3.14159
 
 //Typedefs
 union u{
@@ -58,6 +57,7 @@ union u{
     char rawData[sizeof(int16_t)];
 } rawData_to_int;
 
+//FN 
 void SystemClock_Config(void);
 void Error_Handler(void);
 
@@ -71,7 +71,7 @@ void USART_sendString(char * toSend);
 char USART_readChar(void);
 //set up USART interrupt handler
 void USART3_4_IRQHandler(void);
-
+//********************I2C**************************
 //blocking method. reads i2c transaction for n bytes
 int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char *returnMsg);
 //blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
@@ -80,7 +80,6 @@ void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
 
 int main(void)
 {
-
 	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
 	HAL_Init();
 
@@ -107,9 +106,6 @@ int main(void)
 	USART3->CR1 |= (1 << 2) | (1 << 3); //enable transmit and receive (periphrefmanual.pdf, pg 734)
 	USART3->CR1 |= (1 << 5); //enable receive register not empty interrupt
 	USART3->CR1 |= (1 << 0); //enable USART3
-
-
-
 
 	//set up leds on board
 	GPIO_InitTypeDef LEDinitStr = {GPIO_PIN_6 | GPIO_PIN_7 | GPIO_PIN_8 | GPIO_PIN_9,
@@ -142,35 +138,27 @@ int main(void)
 	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
 	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
 	I2C2->CR1 |= (1 << 0); //peripheral enabled
-															
-	/* Clear the NBYTES and SADD bit fields
-	* The NBYTES field begins at bit 16, the SADD at bit 0
-	*/
-	// I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0));
-	/* Set NBYTES = 42 and SADD = 0x14
-	* Can use hex or decimal values directly as bitmasks.
-	* Remember that for 7-bit addresses, the lowest SADD bit
-	* is not used and the mask must be shifted by one.
-	*/
-	// I2C2->CR2 |= (42 << 16) | (0x14 << 1);
-
 
 	//For use with the MPU 9250
 	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
 	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
 	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
 	const uint8_t mMPU_CONFIG_REG = 0x1AU;
+	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
+	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
 	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
 	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
 	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
 	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
 	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
 	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
-	const uint8_t mMPU_MAG_CTRL_REG = 0x0AU;
-	const uint8_t mMPU_MAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
-	const uint8_t mMPU_MAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
-
-	uint8_t whoAmIReturn[1];
+	const uint8_t mMAG_ADDR = 0x0CU; 
+	const uint8_t mMAG_CTRL_REG = 0x0AU;
+	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
+	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
+	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
+	
+	int8_t whoAmIReturn[1];
 	signed char accelOutRaw[6];
 	float accelOut[3];
 	char accelString[sizeof(float)];
@@ -181,18 +169,20 @@ int main(void)
 	float magOut[3];
 	char magString[sizeof(float)];
 	
-	//init mpu without Mag init
-	uint8_t configArr[] = {mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET, mMPU_MAG_CTRL_REG, mMPU_MAG_CTRL_SET};
+	//init mpu
+	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
 	writeI2C(mMPU_ADDR, 6, configArr);
 		
-	greenOn;
+	//init magnetometer
+	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
+	writeI2C(mMAG_ADDR, 2, magConfigArr);
 	
 	while (1)
 	{
-//		//check comms are up with the correct slave
-//		readI2C(mMPU_ADDR, mMPU_WHO_AM_I_REG, 1, whoAmIReturn);
+		//check comms are up with the correct slave
+//		readI2C(0x0CU, 0x00U, 1, whoAmIReturn);
 
-//		if(whoAmIReturn[0] == mMPU_WHO_AM_I_VAL)
+//		if(whoAmIReturn[0] & 0x48)
 //		{
 //			greenOn;
 //		}
@@ -202,27 +192,62 @@ int main(void)
 //		}
 		
 		//read data
-//		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
-//		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
-		readI2C(mMPU_ADDR, mMPU_MAG_OUT_REG, 6, magOutRaw);
+		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
+		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
+		
+		int8_t isReady;
+
+		do
+		{
+			readI2C(mMAG_ADDR, mMAG_ST1_REG, 1, &isReady);
+		}
+		while(!(isReady & 0x01));
+	
+		readI2C(mMAG_ADDR, mMAG_OUT_REG, 7, magOutRaw);
 
 		//assemble data
 		for (int i = 0; i < 3; i++)
 		{
-//			//accel (big-endian)
-//			rawData_to_int.rawData[1] = accelOutRaw[i*2];
-//			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
-//			accelOut[i] = rawData_to_int.i * 40.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
-//			//gyro (big-endian)
-//			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
-//			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
-//			gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
+			//accel (big-endian)
+			rawData_to_int.rawData[1] = accelOutRaw[i*2];
+			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
+			accelOut[i] = rawData_to_int.i * 40.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
+			//gyro (big-endian)
+			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
+			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
+			gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
 			//mag (little-endian)
 			rawData_to_int.rawData[0] = magOutRaw[i*2];
 			rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
 			magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
 		}
+		
+		float magneticBearingFromNorth = atan2(magOut[1], magOut[0]) * 180.0 / M_PI;
+		
+		USART_sendString("\n\n\r***Mag Bearing From North [deg]***\n\r");
+		sprintf(magString, "%f", magneticBearingFromNorth);
+		USART_sendString(magString);
 
+		//accel check
+//		if(accelOut[0] >= 1.0)
+//		{
+//			orangeOn;
+//			blueOff;
+//			greenOff;
+//		}
+//		if(accelOut[1] >= 1.0)
+//		{
+//			blueOn;
+//			orangeOff;
+//			greenOff;
+//		}
+//		if(accelOut[2] >= 1.0)
+//		{
+//			greenOn;
+//			orangeOff;
+//			blueOff;
+//		}
+//		redOff;
 	
 //		USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
 //		
@@ -241,26 +266,30 @@ int main(void)
 //			USART_sendString(gyroString);
 //			USART_sendString("\n\r");
 //		}
-		
-		USART_sendString("\n****Mag (uT) [x, y, z]'****\n\r");
-		
-		for (int i = 0; i < 3; i++)
-		{
-			sprintf(magString, "%f",magOut[i]);
-			USART_sendString(magString);
-			USART_sendString("\n\r");
-		}
+//		
+//		USART_sendString("\n****Mag (uT) [x, y, z]'****\n\r");
+//		
+//		for (int i = 0; i < 3; i++)
+//		{
+//			sprintf(magString, "%f",magOut[i]);
+//			USART_sendString(magString);
+//			USART_sendString("\n\r");
+//		}
 		
 		
 
 
 		
-		HAL_Delay(1000);
+		HAL_Delay(1);
 
 	}
 
 }
 
+
+
+//***************************FN*******************************************
+	
 
 void USART_sendChar(char toSend){
 	while(!(USART3->ISR & USART_ISR_TXE)){ //wait till transmit register is empty

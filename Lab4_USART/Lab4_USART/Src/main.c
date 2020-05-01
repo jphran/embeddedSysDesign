@@ -111,34 +111,35 @@ int main(void)
 	
   while (1)
   {
-//		USART_sendString(toSendArr);
-//		HAL_Delay(100);
+		USART_sendString(toSendArr);
+		HAL_Delay(100);
 		
-		//received = USART_readChar();
 		
-//		switch(received)
-//		{
-//			case 'r': 
-//				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_6);
-//				break;
-//			case 'b':
-//				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
-//				break;
-//			case 'o':
-//				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8);
-//				break;
-//			case 'g':
-//				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9);
-//				break;
-//			default: 
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
-//				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
-//				USART_sendString(errMsg);
-//				USART_sendString(&received);
-//				USART_sendString("'\n");
-
+		received = USART_readChar();
+		
+		switch(received)
+		{
+			case 'r': 
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_6);
+				break;
+			case 'b':
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_7);
+				break;
+			case 'o':
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_8);
+				break;
+			case 'g':
+				HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_9);
+				break;
+			default: 
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET);
+				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);
+				USART_sendString(errMsg);
+				USART_sendString(&received);
+				USART_sendString("'\n");
+		}
 		
 		
 		
