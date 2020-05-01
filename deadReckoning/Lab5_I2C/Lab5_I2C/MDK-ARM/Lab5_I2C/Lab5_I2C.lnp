@@ -2,6 +2,7 @@
 "lab5_i2c\stm32f0xx_hal_msp.o"
 "lab5_i2c\stm32f0xx_it.o"
 "lab5_i2c\main.o"
+"lab5_i2c\madgwickahrs.o"
 "lab5_i2c\system_stm32f0xx.o"
 "lab5_i2c\stm32f0xx_hal_tim.o"
 "lab5_i2c\stm32f0xx_hal_flash_ex.o"

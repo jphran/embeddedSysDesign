@@ -397,6 +397,11 @@
               <FileType>1</FileType>
               <FilePath>../Src/main.c</FilePath>
             </File>
+            <File>
+              <FileName>MadgwickAHRS.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\..\..\..\MadgwickFilter\MadgwickAHRS\MadgwickAHRS.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

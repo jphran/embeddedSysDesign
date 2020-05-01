@@ -57,7 +57,9 @@
 //filters
 #define COMP_FILT_GYRO_GAIN 0.9
 #define COMP_FILT_ACC_GAIN (1 - COMP_FILT_GYRO_GAIN)
-
+//for Madgwick Filter
+#define sampleFreq 77.0f
+#define betaDef 0.1f
 //globals (yes, I know these are bad)
 unsigned int g_dt = 0;
 
@@ -66,6 +68,11 @@ union u{
     int16_t i;
     char rawData[sizeof(int16_t)];
 } rawData_to_int;
+
+struct Pose 
+{
+	float roll, pitch, yaw;
+} pose;
 
 //FN protos
 void SystemClock_Config(void);
@@ -91,16 +98,10 @@ void TIM2_IRQHandler(void){ //defined in ../Application/startup_stm32f072xb.s
 	TIM2->SR &= ~(1 << 0); //reset interrupt pending flag
 }
 
-int main(void)
+void initTickCounter()
 {
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
-
-	/* Configure the system clock */
-	SystemClock_Config();
-	
 	//for timing
-	const uint32_t BASE_FREQ = 8000000; //8 Mhz
+	const uint32_t BASE_FREQ = 8e6; //8 Mhz
   const uint32_t PSC_VAL2 = 79; // yields 100kHz clk
 	const uint32_t DES_FREQ2 = 1e5; // Hz
 	const uint32_t ARR_VAL2 = BASE_FREQ/(PSC_VAL2+1)/DES_FREQ2;
@@ -113,11 +114,122 @@ int main(void)
 	TIM2->CR1 |= (1 << 0); //enable timer (periph pg. 436)
 	NVIC_EnableIRQ(TIM2_IRQn); //enable timer 2 interupt vector in the NVIC (defined in stm32f072xb.h)
 //	NVIC_SetPriority(TIM2_IRQn, 1); //set high priority
+}
+
+void initI2C()
+{
+	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //enable i2c2 
+
+	//enable sda (11) and scl (13)
+	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
+															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
+															GPIO_SPEED_FREQ_LOW,
+															GPIO_PULLUP};
+		
+	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
+																																
+	//enable af1 on PB11 and enable af5 on pb13
+	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
+
+	//configure i2c2 to 400 kHz (for MPU 9250)														
+	I2C2->TIMINGR &= ~(0xFU << 28); //PRESC = 0;
+	I2C2->TIMINGR |= (0x9 << 0); //SCLL = 0x9;
+	I2C2->TIMINGR |= (0x3 << 8); //SCLH = 0x3;
+	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
+	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
+	I2C2->CR1 |= (1 << 0); //peripheral enabled
+}
+
+//returns true if correct chips are enslaved
+uint8_t initIMU()
+{
+	//For use with the MPU 9250
+	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
+	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
+	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
+	const uint8_t mMPU_CONFIG_REG = 0x1AU;
+	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
+	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
+	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
+	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
+	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
+	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
+	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
+	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
+	const uint8_t mMAG_ADDR = 0x0CU; 
+	const uint8_t mMAG_WAI_REG = 0x00U;
+	const uint8_t mMAG_WAI_VAL = 0x48U;
+	const uint8_t mMAG_CTRL_REG = 0x0AU;
+	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
+	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
+	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
+	
+	//init mpu
+	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
+	writeI2C(mMPU_ADDR, 6, configArr);
+		
+	//init magnetometer
+	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
+	writeI2C(mMAG_ADDR, 2, magConfigArr);
+	
+	//check comms are up with the correct slave
+	uint8_t isCommsUp;
+	int8_t whoAmIReturn;
+	
+	readI2C(mMAG_ADDR, mMAG_WAI_REG, 1, &whoAmIReturn);
+
+	if(whoAmIReturn & mMAG_WAI_VAL)
+	{
+		isCommsUp = 1;
+	}
+	else
+	{
+		return 0;
+	}
+	
+	readI2C(mMPU_ADDR, mMPU_WHO_AM_I_REG, 1, &whoAmIReturn);
+
+	if(whoAmIReturn & mMPU_WHO_AM_I_VAL)
+	{
+		isCommsUp = 1;
+	}
+	else
+	{
+		return 0;
+	}
+	
+	return isCommsUp;
+}
+
+
+int main(void)
+{
+	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+	HAL_Init();
+
+	/* Configure the system clock */
+	SystemClock_Config();
+	
+	initTickCounter();
+//	//for timing
+//	const uint32_t BASE_FREQ = 8e6; //8 Mhz
+//  const uint32_t PSC_VAL2 = 79; // yields 100kHz clk
+//	const uint32_t DES_FREQ2 = 1e5; // Hz
+//	const uint32_t ARR_VAL2 = BASE_FREQ/(PSC_VAL2+1)/DES_FREQ2;
+//	
+//	//set up timer 2
+//	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; //enable the TIM2 clock in the advanced performance bus register
+//	TIM2->PSC = PSC_VAL2; //this divides the base clk freq by 8000 (yields a 1kHz clock)
+//	TIM2->ARR = ARR_VAL2; //produces a UEV every 4Hz (BASE_FREQ/PSC/DES_FREQ = 250)
+//	TIM2->DIER |= (1 << 0); //enable update event (periph pg. 442)
+//	TIM2->CR1 |= (1 << 0); //enable timer (periph pg. 436)
+//	NVIC_EnableIRQ(TIM2_IRQn); //enable timer 2 interupt vector in the NVIC (defined in stm32f072xb.h)
+////	NVIC_SetPriority(TIM2_IRQn, 1); //set high priority
 	
 	//enable clocks
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN; //enable gpioc clk
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //enable gpiob clk
-	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //enable i2c2 
+//	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //enable i2c2 
 
 	//set up USART3 on PC4(TX) and PC5(RX)
 	GPIO_InitTypeDef initStr = {GPIO_PIN_4 | GPIO_PIN_5,
@@ -148,24 +260,26 @@ int main(void)
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
 
-	//enable sda (11) and scl (13)
-	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
-															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
-															GPIO_SPEED_FREQ_LOW,
-															GPIO_PULLUP};
-		
-	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
-																																
-	//enable af1 on PB11 and enable af5 on pb13
-	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
+//	//enable sda (11) and scl (13)
+//	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
+//															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
+//															GPIO_SPEED_FREQ_LOW,
+//															GPIO_PULLUP};
+//		
+//	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
+//																																
+//	//enable af1 on PB11 and enable af5 on pb13
+//	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
 
-	//configure i2c2 to 400 kHz (for MPU 9250)														
-	I2C2->TIMINGR &= ~(0xFU << 28); //PRESC = 0;
-	I2C2->TIMINGR |= (0x9 << 0); //SCLL = 0x9;
-	I2C2->TIMINGR |= (0x3 << 8); //SCLH = 0x3;
-	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
-	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
-	I2C2->CR1 |= (1 << 0); //peripheral enabled
+//	//configure i2c2 to 400 kHz (for MPU 9250)														
+//	I2C2->TIMINGR &= ~(0xFU << 28); //PRESC = 0;
+//	I2C2->TIMINGR |= (0x9 << 0); //SCLL = 0x9;
+//	I2C2->TIMINGR |= (0x3 << 8); //SCLH = 0x3;
+//	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
+//	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
+//	I2C2->CR1 |= (1 << 0); //peripheral enabled
+
+	initI2C();
 
 	//For use with the MPU 9250
 	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
@@ -200,19 +314,26 @@ int main(void)
 	float accelYawAng;
 	float gyroYawAng;
 	float sysYawAng;
+	float sysVelX = 0;
+	float sysVelY = 0;
+	float sysPosX = 0;
+	float sysPosY = 0;
+
 	
-	//init mpu
-	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
-	writeI2C(mMPU_ADDR, 6, configArr);
-		
-	//init magnetometer
-	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
-	writeI2C(mMAG_ADDR, 2, magConfigArr);
+	
+//	//init mpu
+//	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
+//	writeI2C(mMPU_ADDR, 6, configArr);
+//		
+//	//init magnetometer
+//	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
+//	writeI2C(mMAG_ADDR, 2, magConfigArr);
 
 	uint16_t count = 0;
 	
 	while (1)
 	{
+		blueOn;
 		//read data
 		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
 		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
@@ -233,7 +354,7 @@ int main(void)
 			//accel (big-endian)
 			rawData_to_int.rawData[1] = accelOutRaw[i*2];
 			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
-			accelOut[i] = rawData_to_int.i * 40.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
+			accelOut[i] = rawData_to_int.i * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
 			//gyro (big-endian)
 			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
 			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
@@ -248,25 +369,72 @@ int main(void)
 		magneticBearingFromNorth = radToDeg(atan2(magOut[1], magOut[0]));
 		accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
 		gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
+		sysVelX += accelOut[0] * 9.81 * g_dt * 1e-5;
+		sysVelY += accelOut[1] * 9.81 * g_dt * 1e-5;
+		sysPosX += sysVelX * g_dt * 1e-5;
+		sysPosY += sysVelY * g_dt * 1e-5;
 		g_dt = 0;
 
 		//complimentary filter
 		sysYawAng = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
 		
+		//madgwick filter
+//		MadgwickAHRSupdate(gyroOut[0], gyroOut[1], gyroOut[2], accelOut[0], accelOut[1], accelOut[2], magOut[0], magOut[1], magOut[2]);
+//		//convert to euler angles
+//		// roll (x-axis rotation)
+//    double sinr_cosp = 2 * (q0 * q1 + q2 * q3);
+//    double cosr_cosp = 1 - 2 * (q1 * q1 + q2 * q2);
+//    pose.roll = atan2(sinr_cosp, cosr_cosp);
+
+//    // pitch (y-axis rotation)
+//    double sinp = 2 * (q0 * q2 - q3 * q1);
+//    if (fabs(sinp) >= 1)
+//        pose.pitch = copysign(M_PI / 2, sinp); // use 90 degrees if out of range
+//    else
+//        pose.pitch = asin(sinp);
+
+//    // yaw (z-axis rotation)
+//    double siny_cosp = 2 * (q0 * q3 + q1 * q2);
+//    double cosy_cosp = 1 - 2 * (q2 * q2 + q3 * q3);
+//    pose.yaw = atan2(siny_cosp, cosy_cosp);
+		
 		
 		count += 1;
 		if(count >= 100)
 		{
-			USART_sendString("\n\n\r***Sys Yaw Ang [deg]***\n\r");
-			sprintf(gyroString, "%f", sysYawAng);
-			USART_sendString(gyroString);
+			USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
+		
+			for (int i = 0; i < 3; i++)
+			{
+				sprintf(accelString, "%f",accelOut[i]);
+				USART_sendString(accelString);
+				USART_sendString("\n\r");
+			}
+			USART_sendString("\n\n\r***Position***\n\r");
+			sprintf(accelString, "%f", sysPosX);
+			USART_sendString(accelString);
+			USART_sendString("\n\r");
+			sprintf(accelString, "%f", sysPosY);
+			USART_sendString(accelString);
+			USART_sendString("\n\r");
+			
+			USART_sendString("\n\n\r***Yaw***\n\r");
+			sprintf(accelString, "%f", sysYawAng);
+			USART_sendString(accelString);
+			USART_sendString("\n\r");
+			
+			USART_sendString("\n\n\r***Yaw***\n\r");
+			sprintf(accelString, "%f", sysYawAng);
+			USART_sendString(accelString);
+			USART_sendString("\n\r");
 
 			count = 0;
-		}
+		} 
 		
 		
 		HAL_Delay(1);
-
+		
+		blueOff;
 	}
 
 }
