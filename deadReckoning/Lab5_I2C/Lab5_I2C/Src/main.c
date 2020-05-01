@@ -36,6 +36,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "stm32f0xx_hal.h"
+#include "MadgwickAHRS.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -50,6 +51,15 @@
 #define orangeOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET) //orange
 #define greenOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET)	// green
 #define M_PI 3.14159
+#define radToDeg(rad) (rad * 180.0 / M_PI)
+#define degToRad(deg) (deg * M_PI / 180.0)
+
+//filters
+#define COMP_FILT_GYRO_GAIN 0.9
+#define COMP_FILT_ACC_GAIN (1 - COMP_FILT_GYRO_GAIN)
+
+//globals (yes, I know these are bad)
+unsigned int g_dt = 0;
 
 //Typedefs
 union u{
@@ -57,10 +67,9 @@ union u{
     char rawData[sizeof(int16_t)];
 } rawData_to_int;
 
-//FN 
+//FN protos
 void SystemClock_Config(void);
 void Error_Handler(void);
-
 //*******************USART***********************
 const unsigned int desBaudRate = 115200;
 // transmit a single char over USART
@@ -76,7 +85,11 @@ void USART3_4_IRQHandler(void);
 int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char *returnMsg);
 //blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
 void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
-
+//for timing
+void TIM2_IRQHandler(void){ //defined in ../Application/startup_stm32f072xb.s
+	g_dt += 1;
+	TIM2->SR &= ~(1 << 0); //reset interrupt pending flag
+}
 
 int main(void)
 {
@@ -85,7 +98,22 @@ int main(void)
 
 	/* Configure the system clock */
 	SystemClock_Config();
-
+	
+	//for timing
+	const uint32_t BASE_FREQ = 8000000; //8 Mhz
+  const uint32_t PSC_VAL2 = 79; // yields 100kHz clk
+	const uint32_t DES_FREQ2 = 1e5; // Hz
+	const uint32_t ARR_VAL2 = BASE_FREQ/(PSC_VAL2+1)/DES_FREQ2;
+	
+	//set up timer 2
+	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; //enable the TIM2 clock in the advanced performance bus register
+	TIM2->PSC = PSC_VAL2; //this divides the base clk freq by 8000 (yields a 1kHz clock)
+	TIM2->ARR = ARR_VAL2; //produces a UEV every 4Hz (BASE_FREQ/PSC/DES_FREQ = 250)
+	TIM2->DIER |= (1 << 0); //enable update event (periph pg. 442)
+	TIM2->CR1 |= (1 << 0); //enable timer (periph pg. 436)
+	NVIC_EnableIRQ(TIM2_IRQn); //enable timer 2 interupt vector in the NVIC (defined in stm32f072xb.h)
+//	NVIC_SetPriority(TIM2_IRQn, 1); //set high priority
+	
 	//enable clocks
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN; //enable gpioc clk
 	RCC->AHBENR |= RCC_AHBENR_GPIOBEN; //enable gpiob clk
@@ -168,6 +196,10 @@ int main(void)
 	signed char magOutRaw[6];
 	float magOut[3];
 	char magString[sizeof(float)];
+	float magneticBearingFromNorth;
+	float accelYawAng;
+	float gyroYawAng;
+	float sysYawAng;
 	
 	//init mpu
 	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
@@ -176,21 +208,11 @@ int main(void)
 	//init magnetometer
 	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
 	writeI2C(mMAG_ADDR, 2, magConfigArr);
+
+	uint16_t count = 0;
 	
 	while (1)
 	{
-		//check comms are up with the correct slave
-//		readI2C(0x0CU, 0x00U, 1, whoAmIReturn);
-
-//		if(whoAmIReturn[0] & 0x48)
-//		{
-//			greenOn;
-//		}
-//		else
-//		{
-//			redOn;
-//		}
-		
 		//read data
 		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
 		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
@@ -222,63 +244,26 @@ int main(void)
 			magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
 		}
 		
-		float magneticBearingFromNorth = atan2(magOut[1], magOut[0]) * 180.0 / M_PI;
-		
-		USART_sendString("\n\n\r***Mag Bearing From North [deg]***\n\r");
-		sprintf(magString, "%f", magneticBearingFromNorth);
-		USART_sendString(magString);
+		//convert data to the good stuff (bearings and position)
+		magneticBearingFromNorth = radToDeg(atan2(magOut[1], magOut[0]));
+		accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
+		gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
+		g_dt = 0;
 
-		//accel check
-//		if(accelOut[0] >= 1.0)
-//		{
-//			orangeOn;
-//			blueOff;
-//			greenOff;
-//		}
-//		if(accelOut[1] >= 1.0)
-//		{
-//			blueOn;
-//			orangeOff;
-//			greenOff;
-//		}
-//		if(accelOut[2] >= 1.0)
-//		{
-//			greenOn;
-//			orangeOff;
-//			blueOff;
-//		}
-//		redOff;
-	
-//		USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
-//		
-//		for (int i = 0; i < 3; i++)
-//		{
-//			sprintf(accelString, "%f",accelOut[i]);
-//			USART_sendString(accelString);
-//			USART_sendString("\n\r");
-//		}
-//		
-//		USART_sendString("\n****Gyro (dps) [x, y, z]'****\n\r");
-//		
-//		for (int i = 0; i < 3; i++)
-//		{
-//			sprintf(gyroString, "%f",gyroOut[i]);
-//			USART_sendString(gyroString);
-//			USART_sendString("\n\r");
-//		}
-//		
-//		USART_sendString("\n****Mag (uT) [x, y, z]'****\n\r");
-//		
-//		for (int i = 0; i < 3; i++)
-//		{
-//			sprintf(magString, "%f",magOut[i]);
-//			USART_sendString(magString);
-//			USART_sendString("\n\r");
-//		}
+		//complimentary filter
+		sysYawAng = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
 		
 		
+		count += 1;
+		if(count >= 100)
+		{
+			USART_sendString("\n\n\r***Sys Yaw Ang [deg]***\n\r");
+			sprintf(gyroString, "%f", sysYawAng);
+			USART_sendString(gyroString);
 
-
+			count = 0;
+		}
+		
 		
 		HAL_Delay(1);
 
