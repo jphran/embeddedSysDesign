@@ -407,6 +407,11 @@
               <FileType>1</FileType>
               <FilePath>..\Src\ins_types.c</FilePath>
             </File>
+            <File>
+              <FileName>MPU9250.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\MPU9250.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

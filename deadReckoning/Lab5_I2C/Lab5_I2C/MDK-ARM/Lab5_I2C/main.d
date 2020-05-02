@@ -31,4 +31,5 @@ lab5_i2c\main.o: ../Inc/MadgwickAHRS.h
 lab5_i2c\main.o: ../Inc/ins_types.h
 lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
 lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+lab5_i2c\main.o: ../Inc/MPU9250.h
 lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h

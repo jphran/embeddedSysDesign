@@ -1,35 +1,3 @@
-/**
-  ******************************************************************************
-  * File Name          : main.c
-  * Description        : Main program body
-  ******************************************************************************
-  *
-  * COPYRIGHT(c) 2020 STMicroelectronics
-  *
-  * Redistribution and use in source and binary forms, with or without modification,
-  * are permitted provided that the following conditions are met:
-  *   1. Redistributions of source code must retain the above copyright notice,
-  *      this list of conditions and the following disclaimer.
-  *   2. Redistributions in binary form must reproduce the above copyright notice,
-  *      this list of conditions and the following disclaimer in the documentation
-  *      and/or other materials provided with the distribution.
-  *   3. Neither the name of STMicroelectronics nor the names of its contributors
-  *      may be used to endorse or promote products derived from this software
-  *      without specific prior written permission.
-  *
-  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
-  * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
-  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
-  * DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
-  * FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
-  * DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
-  * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
-  * CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
-  * OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
-  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-  *
-  ******************************************************************************
-  */
 
 // Modified by: Justin Francis, 4/27/20
 
@@ -38,6 +6,7 @@
 #include "stm32f0xx_hal.h"
 #include "MadgwickAHRS.h"
 #include "ins_types.h"
+#include "MPU9250.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -51,24 +20,24 @@
 #define blueOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_7, GPIO_PIN_RESET) //blue
 #define orangeOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET) //orange
 #define greenOff HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET)	// green
-#define M_PI 3.14159
-#define radToDeg(rad) (rad * 180.0 / M_PI)
-#define degToRad(deg) (deg * M_PI / 180.0)
+// #define M_PI 3.14159
+// #define radToDeg(rad) (rad * 180.0 / M_PI)
+// #define degToRad(deg) (deg * M_PI / 180.0)
 
-//filters
-#define COMP_FILT_GYRO_GAIN 0.9
-#define COMP_FILT_ACC_GAIN (1 - COMP_FILT_GYRO_GAIN)
+// //filters
+// #define COMP_FILT_GYRO_GAIN 0.9
+// #define COMP_FILT_ACC_GAIN (1 - COMP_FILT_GYRO_GAIN)
 //for Madgwick Filter
 #define sampleFreq 77.0f
 #define betaDef 0.1f
 //globals (yes, I know these are bad)
-unsigned int g_dt = 0;
+// unsigned int g_dt = 0;
 
 //Typedefs
-union u{
-    int16_t i;
-    char rawData[sizeof(int16_t)];
-} rawData_to_int;
+// union u{
+//     int16_t i;
+//     char rawData[sizeof(int16_t)];
+// } rawData_to_int;
 
 struct Pose 
 {
@@ -90,186 +59,186 @@ char USART_readChar(void);
 void USART3_4_IRQHandler(void);
 //********************I2C**************************
 //blocking method. reads i2c transaction for n bytes
-int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char *returnMsg);
-//blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
-void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
-//for timing
-void TIM2_IRQHandler(void){ //defined in ../Application/startup_stm32f072xb.s
-	g_dt += 1;
-	TIM2->SR &= ~(1 << 0); //reset interrupt pending flag
-}
+// int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char *returnMsg);
+// //blocking method that writes to a slave, writes n bytes, first byte in msg (msg[0]) is register address
+// void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t *msg);
+// //for timing
+// void TIM2_IRQHandler(void){ //defined in ../Application/startup_stm32f072xb.s
+// 	g_dt += 1;
+// 	TIM2->SR &= ~(1 << 0); //reset interrupt pending flag
+// }
 
-void initTickCounter()
-{
-	//for timing
-	const uint32_t BASE_FREQ = 8e6; //8 Mhz
-  const uint32_t PSC_VAL2 = 79; // yields 100kHz clk
-	const uint32_t DES_FREQ2 = 1e5; // Hz
-	const uint32_t ARR_VAL2 = BASE_FREQ/(PSC_VAL2+1)/DES_FREQ2;
+// void initTickCounter()
+// {
+// 	//for timing
+// 	const uint32_t BASE_FREQ = 8e6; //8 Mhz
+//   const uint32_t PSC_VAL2 = 79; // yields 100kHz clk
+// 	const uint32_t DES_FREQ2 = 1e5; // Hz
+// 	const uint32_t ARR_VAL2 = BASE_FREQ/(PSC_VAL2+1)/DES_FREQ2;
 	
-	//set up timer 2
-	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; //enable the TIM2 clock in the advanced performance bus register
-	TIM2->PSC = PSC_VAL2; //this divides the base clk freq by 8000 (yields a 1kHz clock)
-	TIM2->ARR = ARR_VAL2; //produces a UEV every 4Hz (BASE_FREQ/PSC/DES_FREQ = 250)
-	TIM2->DIER |= (1 << 0); //enable update event (periph pg. 442)
-	TIM2->CR1 |= (1 << 0); //enable timer (periph pg. 436)
-	NVIC_EnableIRQ(TIM2_IRQn); //enable timer 2 interupt vector in the NVIC (defined in stm32f072xb.h)
-//	NVIC_SetPriority(TIM2_IRQn, 1); //set high priority
-}
+// 	//set up timer 2
+// 	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; //enable the TIM2 clock in the advanced performance bus register
+// 	TIM2->PSC = PSC_VAL2; //this divides the base clk freq by 8000 (yields a 1kHz clock)
+// 	TIM2->ARR = ARR_VAL2; //produces a UEV every 4Hz (BASE_FREQ/PSC/DES_FREQ = 250)
+// 	TIM2->DIER |= (1 << 0); //enable update event (periph pg. 442)
+// 	TIM2->CR1 |= (1 << 0); //enable timer (periph pg. 436)
+// 	NVIC_EnableIRQ(TIM2_IRQn); //enable timer 2 interupt vector in the NVIC (defined in stm32f072xb.h)
+// //	NVIC_SetPriority(TIM2_IRQn, 1); //set high priority
+// }
 
-void initI2C()
-{
-	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //enable i2c2 
+// void initI2C()
+// {
+// 	RCC->APB1ENR |= RCC_APB1ENR_I2C2EN; //enable i2c2 
 
-	//enable sda (11) and scl (13)
-	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
-															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
-															GPIO_SPEED_FREQ_LOW,
-															GPIO_PULLUP};
+// 	//enable sda (11) and scl (13)
+// 	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
+// 															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
+// 															GPIO_SPEED_FREQ_LOW,
+// 															GPIO_PULLUP};
 		
-	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
+// 	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
 																																
-	//enable af1 on PB11 and enable af5 on pb13
-	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
+// 	//enable af1 on PB11 and enable af5 on pb13
+// 	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
 
-	//configure i2c2 to 400 kHz (for MPU 9250)														
-	I2C2->TIMINGR &= ~(0xFU << 28); //PRESC = 0;
-	I2C2->TIMINGR |= (0x9 << 0); //SCLL = 0x9;
-	I2C2->TIMINGR |= (0x3 << 8); //SCLH = 0x3;
-	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
-	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
-	I2C2->CR1 |= (1 << 0); //peripheral enabled
-}
+// 	//configure i2c2 to 400 kHz (for MPU 9250)														
+// 	I2C2->TIMINGR &= ~(0xFU << 28); //PRESC = 0;
+// 	I2C2->TIMINGR |= (0x9 << 0); //SCLL = 0x9;
+// 	I2C2->TIMINGR |= (0x3 << 8); //SCLH = 0x3;
+// 	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
+// 	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
+// 	I2C2->CR1 |= (1 << 0); //peripheral enabled
+// }
 
-//returns true if correct chips are enslaved
-uint8_t initIMU()
-{
-	//For use with the MPU 9250
-	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
-	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
-	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
-	const uint8_t mMPU_CONFIG_REG = 0x1AU;
-	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
-	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
-	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
-	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
-	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
-	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
-	const uint8_t mMAG_ADDR = 0x0CU; 
-	const uint8_t mMAG_WAI_REG = 0x00U;
-	const uint8_t mMAG_WAI_VAL = 0x48U;
-	const uint8_t mMAG_CTRL_REG = 0x0AU;
-	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
+// //returns true if correct chips are enslaved
+// uint8_t initIMU()
+// {
+// 	//For use with the MPU 9250
+// 	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
+// 	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
+// 	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
+// 	const uint8_t mMPU_CONFIG_REG = 0x1AU;
+// 	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
+// 	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
+// 	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
+// 	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
+// 	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
+// 	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
+// 	const uint8_t mMAG_ADDR = 0x0CU; 
+// 	const uint8_t mMAG_WAI_REG = 0x00U;
+// 	const uint8_t mMAG_WAI_VAL = 0x48U;
+// 	const uint8_t mMAG_CTRL_REG = 0x0AU;
+// 	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
 
 	
-	//init mpu
-	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
-	writeI2C(mMPU_ADDR, 6, configArr);
+// 	//init mpu
+// 	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
+// 	writeI2C(mMPU_ADDR, 6, configArr);
 		
-	//init magnetometer
-	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
-	writeI2C(mMAG_ADDR, 2, magConfigArr);
+// 	//init magnetometer
+// 	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
+// 	writeI2C(mMAG_ADDR, 2, magConfigArr);
 	
-	//check comms are up with the correct slave
-	uint8_t isCommsUp;
-	int8_t whoAmIReturn;
+// 	//check comms are up with the correct slave
+// 	uint8_t isCommsUp;
+// 	int8_t whoAmIReturn;
 	
-	readI2C(mMAG_ADDR, mMAG_WAI_REG, 1, &whoAmIReturn);
+// 	readI2C(mMAG_ADDR, mMAG_WAI_REG, 1, &whoAmIReturn);
 
-	if(whoAmIReturn & mMAG_WAI_VAL)
-	{
-		isCommsUp = 1;
-	}
-	else
-	{
-		return 0;
-	}
+// 	if(whoAmIReturn & mMAG_WAI_VAL)
+// 	{
+// 		isCommsUp = 1;
+// 	}
+// 	else
+// 	{
+// 		return 0;
+// 	}
 	
-	readI2C(mMPU_ADDR, mMPU_WHO_AM_I_REG, 1, &whoAmIReturn);
+// 	readI2C(mMPU_ADDR, mMPU_WHO_AM_I_REG, 1, &whoAmIReturn);
 
-	if(whoAmIReturn & mMPU_WHO_AM_I_VAL)
-	{
-		isCommsUp = 1;
-	}
-	else
-	{
-		return 0;
-	}
+// 	if(whoAmIReturn & mMPU_WHO_AM_I_VAL)
+// 	{
+// 		isCommsUp = 1;
+// 	}
+// 	else
+// 	{
+// 		return 0;
+// 	}
 	
-	return isCommsUp;
-}
+// 	return isCommsUp;
+// }
 
-void updateIMU(struct Orientation* ont, float* magneticBearing)
-{
-	static const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
-	static const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
-	static const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
-	static const uint8_t mMAG_ADDR = 0x0CU; 
-	static const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
-	static const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
-	static const float MAGNETIC_DECLINATION_SLC = 12.5; //deg east
+// void updateIMU(struct Orientation* ont, float* magneticBearing)
+// {
+// 	static const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
+// 	static const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
+// 	static const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
+// 	static const uint8_t mMAG_ADDR = 0x0CU; 
+// 	static const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
+// 	static const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
+// 	static const float MAGNETIC_DECLINATION_SLC = 12.5; //deg east
 
-	signed char accelOutRaw[6];
-	float accelOut[3];
-	signed char gyroOutRaw[6];
-	float gyroOut[3];
-	signed char magOutRaw[6];
-	float magOut[3];
-	float accelYawAng;
-	float gyroYawAng;
+// 	signed char accelOutRaw[6];
+// 	float accelOut[3];
+// 	signed char gyroOutRaw[6];
+// 	float gyroOut[3];
+	// signed char magOutRaw[6];
+	// float magOut[3];
+	// float accelYawAng;
+	// float gyroYawAng;
 	
-	//read data
-	readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
-	readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
+	// //read data
+	// readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
+	// readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
 
-	int8_t isReady;
+	// int8_t isReady;
 
-	do
-	{
-		readI2C(mMAG_ADDR, mMAG_ST1_REG, 1, &isReady);
-	}
-	while(!(isReady & 0x01));
+	// do
+	// {
+	// 	readI2C(mMAG_ADDR, mMAG_ST1_REG, 1, &isReady);
+	// }
+	// while(!(isReady & 0x01));
 
-	readI2C(mMAG_ADDR, mMAG_OUT_REG, 7, magOutRaw);
+	// readI2C(mMAG_ADDR, mMAG_OUT_REG, 7, magOutRaw);
 
-	//assemble data
-	for (int i = 0; i < 3; i++)
-	{
-		//accel (big-endian)
-		rawData_to_int.rawData[1] = accelOutRaw[i*2];
-		rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
-		accelOut[i] = rawData_to_int.i * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
-		//gyro (big-endian)
-		rawData_to_int.rawData[1] = gyroOutRaw[i*2];
-		rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
-		gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
-		//mag (little-endian)
-		rawData_to_int.rawData[0] = magOutRaw[i*2];
-		rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
-		magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
-	}
+	// //assemble data
+	// for (int i = 0; i < 3; i++)
+	// {
+	// 	//accel (big-endian)
+	// 	rawData_to_int.rawData[1] = accelOutRaw[i*2];
+	// 	rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
+	// 	accelOut[i] = rawData_to_int.i * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
+	// 	//gyro (big-endian)
+	// 	rawData_to_int.rawData[1] = gyroOutRaw[i*2];
+// 		rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
+// 		gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
+// 		//mag (little-endian)
+// 		rawData_to_int.rawData[0] = magOutRaw[i*2];
+// 		rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
+// 		magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
+// 	}
 
-	//convert data to the good stuff (bearings and position)
-	*magneticBearing = radToDeg(atan2(magOut[1], magOut[0])) - MAGNETIC_DECLINATION_SLC;
-	accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
-	gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
-	ont->pos.v.x += accelOut[0] * 9.81 * g_dt * 1e-5;
-	ont->pos.v.y += accelOut[1] * 9.81 * g_dt * 1e-5;
-	ont->pos.o.x += ont->pos.v.x * g_dt * 1e-5;
-	ont->pos.o.y += ont->pos.v.y * g_dt * 1e-5;
-	g_dt = 0;
+// 	//convert data to the good stuff (bearings and position)
+// 	*magneticBearing = radToDeg(atan2(magOut[1], magOut[0])) - MAGNETIC_DECLINATION_SLC;
+// 	accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
+// 	gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
+// 	ont->pos.v.x += accelOut[0] * 9.81 * g_dt * 1e-5;
+// 	ont->pos.v.y += accelOut[1] * 9.81 * g_dt * 1e-5;
+// 	ont->pos.o.x += ont->pos.v.x * g_dt * 1e-5;
+// 	ont->pos.o.y += ont->pos.v.y * g_dt * 1e-5;
+// 	g_dt = 0;
 
-	//complimentary filter
-	ont->rot.o.z = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
+// 	//complimentary filter
+// 	ont->rot.o.z = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
 	
-	//fill remaining orientation members
-	ont->pos.a.x = accelOut[0];
-	ont->pos.a.y = accelOut[1];
-	ont->pos.a.z = accelOut[2];
-	ont->rot.v.x = gyroOut[0];
-	ont->rot.v.y = gyroOut[1];
-	ont->rot.v.z = gyroOut[2];
-}
+// 	//fill remaining orientation members
+// 	ont->pos.a.x = accelOut[0];
+// 	ont->pos.a.y = accelOut[1];
+// 	ont->pos.a.z = accelOut[2];
+// 	ont->rot.v.x = gyroOut[0];
+// 	ont->rot.v.y = gyroOut[1];
+// 	ont->rot.v.z = gyroOut[2];
+// }
 
 
 int main(void)
@@ -281,20 +250,6 @@ int main(void)
 	SystemClock_Config();
 	
 	initTickCounter();
-//	//for timing
-//	const uint32_t BASE_FREQ = 8e6; //8 Mhz
-//  const uint32_t PSC_VAL2 = 79; // yields 100kHz clk
-//	const uint32_t DES_FREQ2 = 1e5; // Hz
-//	const uint32_t ARR_VAL2 = BASE_FREQ/(PSC_VAL2+1)/DES_FREQ2;
-//	
-//	//set up timer 2
-//	RCC->APB1ENR |= RCC_APB1ENR_TIM2EN; //enable the TIM2 clock in the advanced performance bus register
-//	TIM2->PSC = PSC_VAL2; //this divides the base clk freq by 8000 (yields a 1kHz clock)
-//	TIM2->ARR = ARR_VAL2; //produces a UEV every 4Hz (BASE_FREQ/PSC/DES_FREQ = 250)
-//	TIM2->DIER |= (1 << 0); //enable update event (periph pg. 442)
-//	TIM2->CR1 |= (1 << 0); //enable timer (periph pg. 436)
-//	NVIC_EnableIRQ(TIM2_IRQn); //enable timer 2 interupt vector in the NVIC (defined in stm32f072xb.h)
-////	NVIC_SetPriority(TIM2_IRQn, 1); //set high priority
 	
 	//enable clocks
 	RCC->AHBENR |= RCC_AHBENR_GPIOCEN; //enable gpioc clk
@@ -330,73 +285,11 @@ int main(void)
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_8, GPIO_PIN_RESET); //orange
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
 
-//	//enable sda (11) and scl (13)
-//	GPIO_InitTypeDef i2cInitStr = {GPIO_PIN_11 | GPIO_PIN_13,
-//															GPIO_MODE_AF_OD, //set gpio to alternate function, open drain mode
-//															GPIO_SPEED_FREQ_LOW,
-//															GPIO_PULLUP};
-//		
-//	HAL_GPIO_Init(GPIOB, &i2cInitStr); //enable gpio PC11/13 pin
-//																																
-//	//enable af1 on PB11 and enable af5 on pb13
-//	GPIOB->AFR[1] |= (1 << 12) | (1 << 20) | (1 << 22);
-
-//	//configure i2c2 to 400 kHz (for MPU 9250)														
-//	I2C2->TIMINGR &= ~(0xFU << 28); //PRESC = 0;
-//	I2C2->TIMINGR |= (0x9 << 0); //SCLL = 0x9;
-//	I2C2->TIMINGR |= (0x3 << 8); //SCLH = 0x3;
-//	I2C2->TIMINGR |= (0x1 << 16); //SDADEL = 0x1;	
-//	I2C2->TIMINGR |= (0x3 << 20); //SCLDEL = 0x3;
-//	I2C2->CR1 |= (1 << 0); //peripheral enabled
-
 	initI2C();
 
-	//For use with the MPU 9250
-//	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
-//	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
-//	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
-//	const uint8_t mMPU_CONFIG_REG = 0x1AU;
-//	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
-//	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
-//	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
-//	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
-//	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
-//	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
-//	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
-//	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
-//	const uint8_t mMAG_ADDR = 0x0CU; 
-//	const uint8_t mMAG_CTRL_REG = 0x0AU;
-//	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
-//	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
-//	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
 	
-//	signed char accelOutRaw[6];
-//	float accelOut[3];
-//	char accelString[sizeof(float)];
-//	signed char gyroOutRaw[6];
-//	float gyroOut[3];
-//	char gyroString[sizeof(float)];
-//	signed char magOutRaw[6];
-//	float magOut[3];
-//	char magString[sizeof(float)];
-//	float magneticBearingFromNorth;
-//	float accelYawAng;
-//	float gyroYawAng;
-//	float sysYawAng;
-//	float sysVelX = 0;
-//	float sysVelY = 0;
-//	float sysPosX = 0;
-//	float sysPosY = 0;
 
 	
-	
-//	//init mpu
-//	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
-//	writeI2C(mMPU_ADDR, 6, configArr);
-//		
-//	//init magnetometer
-//	uint8_t magConfigArr[] = {mMAG_CTRL_REG, mMAG_CTRL_SET};
-//	writeI2C(mMAG_ADDR, 2, magConfigArr);
 
 	uint16_t count = 0;
 	struct Orientation ont;
@@ -535,63 +428,63 @@ void USART_sendString(char *toSend){ //TODO: figure out why 'for(int i = 0; i < 
 }
 
 
-void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t* msg){
-	//configure transaction params
-	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
-	// I2C2->CR2 = 0; //clear CR2 register
-	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
-	I2C2->CR2 &= ~(1 << 10); //set write direction
-	I2C2->CR2 |= (numBytes << 16); //set  byte to transfer
-	I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
+// void writeI2C(uint8_t slaveAddy, uint8_t numBytes, uint8_t* msg){
+// 	//configure transaction params
+// 	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
+// 	// I2C2->CR2 = 0; //clear CR2 register
+// 	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
+// 	I2C2->CR2 &= ~(1 << 10); //set write direction
+// 	I2C2->CR2 |= (numBytes << 16); //set  byte to transfer
+// 	I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
 
-	for(int i = 0; i < numBytes; ++i){
-		//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
-		while(!(I2C2->ISR & (1 << 1))){ 
-			if(I2C2->ISR & (1 << 4)){ //if NACKF set
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err, red led on
-			}
+// 	for(int i = 0; i < numBytes; ++i){
+// 		//wait unitl TXIS flags are set, periphrefman.pdf pg. 680
+// 		while(!(I2C2->ISR & (1 << 1))){ 
+// 			if(I2C2->ISR & (1 << 4)){ //if NACKF set
+// 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err, red led on
+// 			}
 
-		}
-		//send slave msg
-		I2C2->TXDR = msg[i];
-	}
-	//wait till transfer complete flag is set
-	while(!(I2C2->ISR & (1 << 6))){
-		//do nothing
-	}
-}
+// 		}
+// 		//send slave msg
+// 		I2C2->TXDR = msg[i];
+// 	}
+// 	//wait till transfer complete flag is set
+// 	while(!(I2C2->ISR & (1 << 6))){
+// 		//do nothing
+// 	}
+// }
 
 
-int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char* returnMsg){
-	////////////////write slave address ////////////////////////////
-	writeI2C(slaveAddy, 1, &regAddy);
+// int readI2C(uint8_t slaveAddy, uint8_t regAddy, unsigned int numBytes, signed char* returnMsg){
+// 	////////////////write slave address ////////////////////////////
+// 	writeI2C(slaveAddy, 1, &regAddy);
 
-	//configure transaction params	
-	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
-	//I2C2->CR2 = 0; //clear entire register NBYTES and SADD
-	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
-	I2C2->CR2 |= (1 << 10); //set read direction
-	I2C2->CR2 |= (numBytes << 16); //set bytes to transfer
-	I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
+// 	//configure transaction params	
+// 	I2C2->CR2 &= ~((0x7F << 16) | (0x3FF << 0)); //clear CR2 nbytes and sadd registers
+// 	//I2C2->CR2 = 0; //clear entire register NBYTES and SADD
+// 	I2C2->CR2 |= (slaveAddy << 1); //set SADD (slave address)
+// 	I2C2->CR2 |= (1 << 10); //set read direction
+// 	I2C2->CR2 |= (numBytes << 16); //set bytes to transfer
+// 	I2C2->CR2 |= (1 << 13); //set start bit, periprefman.pdf pg 675
 		
-	//////////////////read slave msg////////////////////////////
-	for(int i = 0; i < numBytes; ++i){
-		//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
-		while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
-			if(I2C2->ISR & (1<<4)){ //if NACKF set
-				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err, red LED on
-				return NULL;	//throw err
-			}
-		}
-		returnMsg[i] = I2C2->RXDR;
-	}
-	//wait till transfer complete flag is set
-	while(!(I2C2->ISR & (1 << 6))){
-		//do nothing
-	}
-	I2C2->CR2 |= (1 << 14); //set stop bit
-	return 1;
-}
+// 	//////////////////read slave msg////////////////////////////
+// 	for(int i = 0; i < numBytes; ++i){
+// 		//wait unitl RXNE flags are set, periphrefman.pdf pg. 680
+// 		while(!(I2C2->ISR & ((1 << 2) | (1 << 4)))){ 
+// 			if(I2C2->ISR & (1<<4)){ //if NACKF set
+// 				HAL_GPIO_WritePin(GPIOC, GPIO_PIN_6, GPIO_PIN_SET);	//throw err, red LED on
+// 				return NULL;	//throw err
+// 			}
+// 		}
+// 		returnMsg[i] = I2C2->RXDR;
+// 	}
+// 	//wait till transfer complete flag is set
+// 	while(!(I2C2->ISR & (1 << 6))){
+// 		//do nothing
+// 	}
+// 	I2C2->CR2 |= (1 << 14); //set stop bit
+// 	return 1;
+// }
 
 
 
