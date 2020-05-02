@@ -27,51 +27,10 @@ Project File Date:  05/01/2020
 <h2>Output:</h2>
 *** Using Compiler 'V5.06 update 6 (build 750)', folder: 'C:\Keil_v5\ARM\ARMCC\Bin'
 Build target 'Lab5_I2C'
-compiling main.c...
-../Src/main.c(150): warning:  #177-D: variable "mMPU_CONFIG_REG"  was declared but never referenced
-  	const uint8_t mMPU_CONFIG_REG = 0x1AU;
-../Src/main.c(155): warning:  #177-D: variable "mMPU_GYRO_OUT_REG"  was declared but never referenced
-  	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
-../Src/main.c(158): warning:  #177-D: variable "mMPU_ACCEL_OUT_REG"  was declared but never referenced
-  	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
-../Src/main.c(164): warning:  #177-D: variable "mMAG_ST1_REG"  was declared but never referenced
-  	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
-../Src/main.c(165): warning:  #177-D: variable "mMAG_OUT_REG"  was declared but never referenced
-  	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
-../Src/main.c(286): warning:  #177-D: variable "mMPU_WHO_AM_I_REG"  was declared but never referenced
-  	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
-../Src/main.c(287): warning:  #177-D: variable "mMPU_WHO_AM_I_VAL"  was declared but never referenced
-  	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
-../Src/main.c(288): warning:  #177-D: variable "mMPU_CONFIG_REG"  was declared but never referenced
-  	const uint8_t mMPU_CONFIG_REG = 0x1AU;
-../Src/main.c(289): warning:  #177-D: variable "mMPU_INT_PIN_CONFIG_REG"  was declared but never referenced
-  	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
-../Src/main.c(290): warning:  #177-D: variable "mMPU_INT_PIN_CONFIG_SET"  was declared but never referenced
-  	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
-../Src/main.c(291): warning:  #177-D: variable "mMPU_GYRO_CONFIG_REG"  was declared but never referenced
-  	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
-../Src/main.c(292): warning:  #177-D: variable "mMPU_GYRO_CONFIG_SET"  was declared but never referenced
-  	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
-../Src/main.c(294): warning:  #177-D: variable "mMPU_ACCEL_CONFIG_REG"  was declared but never referenced
-  	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
-../Src/main.c(295): warning:  #177-D: variable "mMPU_ACCEL_CONFIG_SET"  was declared but never referenced
-  	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
-../Src/main.c(298): warning:  #177-D: variable "mMAG_CTRL_REG"  was declared but never referenced
-  	const uint8_t mMAG_CTRL_REG = 0x0AU;
-../Src/main.c(299): warning:  #177-D: variable "mMAG_CTRL_SET"  was declared but never referenced
-  	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
-../Src/main.c(303): warning:  #177-D: variable "whoAmIReturn"  was declared but never referenced
-  	int8_t whoAmIReturn[1];
-../Src/main.c(309): warning:  #177-D: variable "gyroString"  was declared but never referenced
-  	char gyroString[sizeof(float)];
-../Src/main.c(312): warning:  #177-D: variable "magString"  was declared but never referenced
-  	char magString[sizeof(float)];
-../Src/main.c(313): warning:  #550-D: variable "magneticBearingFromNorth"  was set but never used
-  	float magneticBearingFromNorth;
-../Src/main.c: 20 warnings, 0 errors
+compiling ins_types.c...
 linking...
-Program Size: Code=10656 RO-data=544 RW-data=20 ZI-data=1028  
-"Lab5_I2C\Lab5_I2C.axf" - 0 Error(s), 20 Warning(s).
+Program Size: Code=12264 RO-data=544 RW-data=28 ZI-data=1540  
+"Lab5_I2C\Lab5_I2C.axf" - 0 Error(s), 0 Warning(s).
 
 <h2>Software Packages used:</h2>
 

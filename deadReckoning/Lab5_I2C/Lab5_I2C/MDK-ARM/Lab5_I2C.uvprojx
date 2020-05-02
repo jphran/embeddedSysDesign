@@ -402,6 +402,11 @@
               <FileType>1</FileType>
               <FilePath>..\..\..\..\MadgwickFilter\MadgwickAHRS\MadgwickAHRS.c</FilePath>
             </File>
+            <File>
+              <FileName>ins_types.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>..\Src\ins_types.c</FilePath>
+            </File>
           </Files>
         </Group>
         <Group>

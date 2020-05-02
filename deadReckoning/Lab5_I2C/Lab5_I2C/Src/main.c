@@ -37,6 +37,7 @@
 #include "main.h"
 #include "stm32f0xx_hal.h"
 #include "MadgwickAHRS.h"
+#include "ins_types.h"
 #include <string.h>
 #include <math.h>
 #include <stdio.h>
@@ -152,17 +153,14 @@ uint8_t initIMU()
 	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
 	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
 	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
-	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
 	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
 	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
-	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
 	const uint8_t mMAG_ADDR = 0x0CU; 
 	const uint8_t mMAG_WAI_REG = 0x00U;
 	const uint8_t mMAG_WAI_VAL = 0x48U;
 	const uint8_t mMAG_CTRL_REG = 0x0AU;
 	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
-	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
-	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
+
 	
 	//init mpu
 	uint8_t configArr[] = {mMPU_INT_PIN_CONFIG_REG, mMPU_INT_PIN_CONFIG_SET, mMPU_GYRO_CONFIG_REG, mMPU_GYRO_CONFIG_SET, mMPU_ACCEL_CONFIG_REG, mMPU_ACCEL_CONFIG_SET};
@@ -199,6 +197,78 @@ uint8_t initIMU()
 	}
 	
 	return isCommsUp;
+}
+
+void updateIMU(struct Orientation* ont, float* magneticBearing)
+{
+	static const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
+	static const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
+	static const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
+	static const uint8_t mMAG_ADDR = 0x0CU; 
+	static const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
+	static const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
+	static const float MAGNETIC_DECLINATION_SLC = 12.5; //deg east
+
+	signed char accelOutRaw[6];
+	float accelOut[3];
+	signed char gyroOutRaw[6];
+	float gyroOut[3];
+	signed char magOutRaw[6];
+	float magOut[3];
+	float accelYawAng;
+	float gyroYawAng;
+	
+	//read data
+	readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
+	readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
+
+	int8_t isReady;
+
+	do
+	{
+		readI2C(mMAG_ADDR, mMAG_ST1_REG, 1, &isReady);
+	}
+	while(!(isReady & 0x01));
+
+	readI2C(mMAG_ADDR, mMAG_OUT_REG, 7, magOutRaw);
+
+	//assemble data
+	for (int i = 0; i < 3; i++)
+	{
+		//accel (big-endian)
+		rawData_to_int.rawData[1] = accelOutRaw[i*2];
+		rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
+		accelOut[i] = rawData_to_int.i * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
+		//gyro (big-endian)
+		rawData_to_int.rawData[1] = gyroOutRaw[i*2];
+		rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
+		gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
+		//mag (little-endian)
+		rawData_to_int.rawData[0] = magOutRaw[i*2];
+		rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
+		magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
+	}
+
+	//convert data to the good stuff (bearings and position)
+	*magneticBearing = radToDeg(atan2(magOut[1], magOut[0])) - MAGNETIC_DECLINATION_SLC;
+	accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
+	gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
+	ont->pos.v.x += accelOut[0] * 9.81 * g_dt * 1e-5;
+	ont->pos.v.y += accelOut[1] * 9.81 * g_dt * 1e-5;
+	ont->pos.o.x += ont->pos.v.x * g_dt * 1e-5;
+	ont->pos.o.y += ont->pos.v.y * g_dt * 1e-5;
+	g_dt = 0;
+
+	//complimentary filter
+	ont->rot.o.z = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
+	
+	//fill remaining orientation members
+	ont->pos.a.x = accelOut[0];
+	ont->pos.a.y = accelOut[1];
+	ont->pos.a.z = accelOut[2];
+	ont->rot.v.x = gyroOut[0];
+	ont->rot.v.y = gyroOut[1];
+	ont->rot.v.z = gyroOut[2];
 }
 
 
@@ -282,42 +352,41 @@ int main(void)
 	initI2C();
 
 	//For use with the MPU 9250
-	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
-	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
-	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
-	const uint8_t mMPU_CONFIG_REG = 0x1AU;
-	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
-	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
-	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
-	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
-	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
-	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
-	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
-	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
-	const uint8_t mMAG_ADDR = 0x0CU; 
-	const uint8_t mMAG_CTRL_REG = 0x0AU;
-	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
-	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
-	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
+//	const uint8_t mMPU_ADDR = 0x68U; //AD0 is pulled low
+//	const uint8_t mMPU_WHO_AM_I_REG = 0x75U;
+//	const uint8_t mMPU_WHO_AM_I_VAL = 0x71U;
+//	const uint8_t mMPU_CONFIG_REG = 0x1AU;
+//	const uint8_t mMPU_INT_PIN_CONFIG_REG = 0x37U;
+//	const uint8_t mMPU_INT_PIN_CONFIG_SET = 0x02U;
+//	const uint8_t mMPU_GYRO_CONFIG_REG = 0x1BU; //given (X, Y, Z) in big-endian
+//	const uint8_t mMPU_GYRO_CONFIG_SET = 0x00U; //set gyro to +- 250 [dps]
+//	const uint8_t mMPU_GYRO_OUT_REG = 0x43U; 
+//	const uint8_t mMPU_ACCEL_CONFIG_REG = 0x1CU; 
+//	const uint8_t mMPU_ACCEL_CONFIG_SET = 0x00; //set accel to +- 2 [g]
+//	const uint8_t mMPU_ACCEL_OUT_REG = 0x3BU; //registers 59-64, given (X, Y, Z) in big-endian
+//	const uint8_t mMAG_ADDR = 0x0CU; 
+//	const uint8_t mMAG_CTRL_REG = 0x0AU;
+//	const uint8_t mMAG_CTRL_SET = 0x16U; //or 0x12U, TODO: figure out what mode 1 vs 2 is
+//	const uint8_t mMAG_ST1_REG = 0x02U; //used to check if data ready
+//	const uint8_t mMAG_OUT_REG = 0x03U; //given (X, Y, Z) in two's complement little-endian
 	
-	int8_t whoAmIReturn[1];
-	signed char accelOutRaw[6];
-	float accelOut[3];
-	char accelString[sizeof(float)];
-	signed char gyroOutRaw[6];
-	float gyroOut[3];
-	char gyroString[sizeof(float)];
-	signed char magOutRaw[6];
-	float magOut[3];
-	char magString[sizeof(float)];
-	float magneticBearingFromNorth;
-	float accelYawAng;
-	float gyroYawAng;
-	float sysYawAng;
-	float sysVelX = 0;
-	float sysVelY = 0;
-	float sysPosX = 0;
-	float sysPosY = 0;
+//	signed char accelOutRaw[6];
+//	float accelOut[3];
+//	char accelString[sizeof(float)];
+//	signed char gyroOutRaw[6];
+//	float gyroOut[3];
+//	char gyroString[sizeof(float)];
+//	signed char magOutRaw[6];
+//	float magOut[3];
+//	char magString[sizeof(float)];
+//	float magneticBearingFromNorth;
+//	float accelYawAng;
+//	float gyroYawAng;
+//	float sysYawAng;
+//	float sysVelX = 0;
+//	float sysVelY = 0;
+//	float sysPosX = 0;
+//	float sysPosY = 0;
 
 	
 	
@@ -330,53 +399,56 @@ int main(void)
 //	writeI2C(mMAG_ADDR, 2, magConfigArr);
 
 	uint16_t count = 0;
+	struct Orientation ont;
+	float magneticBearing;
+	char magString[sizeof(float)];
 	
 	while (1)
 	{
-		blueOn;
-		//read data
-		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
-		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
-		
-		int8_t isReady;
+//		blueOn;
+//		//read data
+//		readI2C(mMPU_ADDR, mMPU_ACCEL_OUT_REG, 6, accelOutRaw);
+//		readI2C(mMPU_ADDR, mMPU_GYRO_OUT_REG, 6, gyroOutRaw);
+//		
+//		int8_t isReady;
 
-		do
-		{
-			readI2C(mMAG_ADDR, mMAG_ST1_REG, 1, &isReady);
-		}
-		while(!(isReady & 0x01));
-	
-		readI2C(mMAG_ADDR, mMAG_OUT_REG, 7, magOutRaw);
+//		do
+//		{
+//			readI2C(mMAG_ADDR, mMAG_ST1_REG, 1, &isReady);
+//		}
+//		while(!(isReady & 0x01));
+//	
+//		readI2C(mMAG_ADDR, mMAG_OUT_REG, 7, magOutRaw);
 
-		//assemble data
-		for (int i = 0; i < 3; i++)
-		{
-			//accel (big-endian)
-			rawData_to_int.rawData[1] = accelOutRaw[i*2];
-			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
-			accelOut[i] = rawData_to_int.i * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
-			//gyro (big-endian)
-			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
-			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
-			gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
-			//mag (little-endian)
-			rawData_to_int.rawData[0] = magOutRaw[i*2];
-			rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
-			magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
-		}
-		
-		//convert data to the good stuff (bearings and position)
-		magneticBearingFromNorth = radToDeg(atan2(magOut[1], magOut[0]));
-		accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
-		gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
-		sysVelX += accelOut[0] * 9.81 * g_dt * 1e-5;
-		sysVelY += accelOut[1] * 9.81 * g_dt * 1e-5;
-		sysPosX += sysVelX * g_dt * 1e-5;
-		sysPosY += sysVelY * g_dt * 1e-5;
-		g_dt = 0;
+//		//assemble data
+//		for (int i = 0; i < 3; i++)
+//		{
+//			//accel (big-endian)
+//			rawData_to_int.rawData[1] = accelOutRaw[i*2];
+//			rawData_to_int.rawData[0] = accelOutRaw[(i*2)+1];
+//			accelOut[i] = rawData_to_int.i * 4.0 / pow(2, 16); //4.0 => +-2.0g's (setup in accel config), 2^16 (resolution)
+//			//gyro (big-endian)
+//			rawData_to_int.rawData[1] = gyroOutRaw[i*2];
+//			rawData_to_int.rawData[0] = gyroOutRaw[(i*2)+1];
+//			gyroOut[i] = rawData_to_int.i * 500.0 / pow(2, 16); //500.0 => +250.0 dps (setup in gyro config), 2^16 (resolution)
+//			//mag (little-endian)
+//			rawData_to_int.rawData[0] = magOutRaw[i*2];
+//			rawData_to_int.rawData[1] = magOutRaw[(i*2)+1];
+//			magOut[i] = rawData_to_int.i * (4912.0 * 2) / pow(2,16); //4912.0*2 => +- 4912 uT (setup in mag config), 2^16 (resolution)
+//		}
+//		
+//		//convert data to the good stuff (bearings and position)
+//		magneticBearingFromNorth = radToDeg(atan2(magOut[1], magOut[0]));
+//		accelYawAng = radToDeg(asin(accelOut[2] / sqrt((accelOut[0] * accelOut[0]) + (accelOut[1] * accelOut[1]) + (accelOut[2] * accelOut[2]))));
+//		gyroYawAng += radToDeg(degToRad(gyroOut[2])) * (g_dt * 1e-5); 
+//		sysVelX += accelOut[0] * 9.81 * g_dt * 1e-5;
+//		sysVelY += accelOut[1] * 9.81 * g_dt * 1e-5;
+//		sysPosX += sysVelX * g_dt * 1e-5;
+//		sysPosY += sysVelY * g_dt * 1e-5;
+//		g_dt = 0;
 
-		//complimentary filter
-		sysYawAng = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
+//		//complimentary filter
+//		sysYawAng = gyroYawAng * COMP_FILT_GYRO_GAIN + accelYawAng * COMP_FILT_ACC_GAIN;
 		
 		//madgwick filter
 //		MadgwickAHRSupdate(gyroOut[0], gyroOut[1], gyroOut[2], accelOut[0], accelOut[1], accelOut[2], magOut[0], magOut[1], magOut[2]);
@@ -397,35 +469,38 @@ int main(void)
 //    double siny_cosp = 2 * (q0 * q3 + q1 * q2);
 //    double cosy_cosp = 1 - 2 * (q2 * q2 + q3 * q3);
 //    pose.yaw = atan2(siny_cosp, cosy_cosp);
+
+		updateIMU(&ont, &magneticBearing);
 		
 		
 		count += 1;
 		if(count >= 100)
 		{
-			USART_sendString("\n****Acceleration (g) [x, y, z]'****\n\r");
-		
-			for (int i = 0; i < 3; i++)
-			{
-				sprintf(accelString, "%f",accelOut[i]);
-				USART_sendString(accelString);
-				USART_sendString("\n\r");
-			}
-			USART_sendString("\n\n\r***Position***\n\r");
-			sprintf(accelString, "%f", sysPosX);
-			USART_sendString(accelString);
-			USART_sendString("\n\r");
-			sprintf(accelString, "%f", sysPosY);
-			USART_sendString(accelString);
-			USART_sendString("\n\r");
-			
-			USART_sendString("\n\n\r***Yaw***\n\r");
-			sprintf(accelString, "%f", sysYawAng);
-			USART_sendString(accelString);
-			USART_sendString("\n\r");
-			
-			USART_sendString("\n\n\r***Yaw***\n\r");
-			sprintf(accelString, "%f", sysYawAng);
-			USART_sendString(accelString);
+			char buffer[ONT_FMT_LEN];	
+			ont_format(&ont, buffer);
+			USART_sendString(buffer);
+//			for (int i = 0; i < 3; i++)
+//			{
+//				sprintf(accelString, "%f",accelOut[i]);
+//				USART_sendString(accelString);
+//				USART_sendString("\n\r");
+//			}
+//			USART_sendString("\n\n\r***Position***\n\r");
+//			sprintf(accelString, "%f", sysPosX);
+//			USART_sendString(accelString);
+//			USART_sendString("\n\r");
+//			sprintf(accelString, "%f", sysPosY);
+//			USART_sendString(accelString);
+//			USART_sendString("\n\r");
+//			
+//			USART_sendString("\n\n\r***Yaw***\n\r");
+//			sprintf(accelString, "%f", sysYawAng);
+//			USART_sendString(accelString);
+//			USART_sendString("\n\r");
+//			
+			USART_sendString("\n\n\r***Bearing***\n\r");
+			sprintf(magString, "%f", magneticBearing);
+			USART_sendString(magString);
 			USART_sendString("\n\r");
 
 			count = 0;
@@ -434,7 +509,7 @@ int main(void)
 		
 		HAL_Delay(1);
 		
-		blueOff;
+//		blueOff;
 	}
 
 }

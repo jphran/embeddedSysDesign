@@ -28,5 +28,7 @@ lab5_i2c\main.o: ../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_i2c_ex.h
 lab5_i2c\main.o: ../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_pwr.h
 lab5_i2c\main.o: ../Drivers/STM32F0xx_HAL_Driver/Inc/stm32f0xx_hal_pwr_ex.h
 lab5_i2c\main.o: ../Inc/MadgwickAHRS.h
-lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
+lab5_i2c\main.o: ../Inc/ins_types.h
 lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\math.h
+lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\stdlib.h
+lab5_i2c\main.o: C:\Keil_v5\ARM\ARMCC\Bin\..\include\string.h
