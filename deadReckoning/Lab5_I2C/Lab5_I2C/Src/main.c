@@ -89,6 +89,7 @@ int main(void)
 	HAL_GPIO_WritePin(GPIOC, GPIO_PIN_9, GPIO_PIN_RESET);	// green
 
 	initI2C();
+	initIMU();
 
 	uint16_t count = 0;
 	struct Orientation ont;
@@ -97,9 +98,9 @@ int main(void)
 	
 	while (1)
 	{
-
+		blueOn;
 		updateIMU(&ont, &magneticBearing);
-		
+		greenOn;
 		
 		count += 1;
 		if(count >= 100)
